@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Implementing ????????</title>
+
+<!-- ■ デジタル風フォント Orbitron を読み込み -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ---- 全体 ------------------------------------------------------ */
+body {
+    font-family: "Orbitron", "Fira Code", monospace;
+    background: #111; /* 画面全体を暗く */
+    margin: 0;
+    padding: 0;
+    color: #fff;
+}
+
+#container {
+    width: 90%;
+    max-width: 900px;
+    margin: 32px auto;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ---- ヘッダー ------------------------------------------------------ */
+#header {
+    padding: 12px 16px;
+    font-size: 20px;
+    background: #000;
+    border-bottom: 1px solid #333;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ---- ログウィンドウ（黒背景・白文字） ------------------------------ */
+#log-window {
+    height: 70vh;
+    padding: 18px;
+    overflow-y: auto;
+    background: #000;
+    color: #fff;
+    position: relative;
+}
+
+/* ---- ログ周囲の「もや / 棘」の共通設定 ----------------------------- */
+#log-window::before,
+#log-window::after {
+    content: "";
+    position: absolute;
+    inset: -20px; /* ログ枠の外側にエフェクトを置く */
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 1s ease;
+}
+
+/* ---- 夢状態：白いもや ------------------------------------------------ */
+.dream-effect::before {
+    background: radial-gradient(circle at 50% 50%,
+                rgba(255,255,255,0.15), rgba(255,255,255,0.0) 70%);
+    filter: blur(30px);
+    opacity: 1;
+}
+
+/* ---- 覚醒状態：棘（スパイク） --------------------------------------- */
+.awaken-effect::before {
+    background:
+        repeating-linear-gradient(45deg,
+            rgba(0,150,255,0.25) 0 2px,
+            rgba(0,0,0,0) 2px 8px);
+    opacity: 0.4;
+    filter: blur(1px);
+}
+
+/* ---- 覚醒状態の補助スパイク ---------------------------------------- */
+.awaken-effect::after {
+    background:
+        repeating-linear-gradient(-45deg,
+            rgba(0,150,255,0.25) 0 2px,
+            rgba(0,0,0,0) 2px 8px);
+    opacity: 0.4;
+    filter: blur(1px);
+}
+
+/* ---- ログ行のアニメーション ---------------------------------------- */
+.log-line {
+    margin-bottom: 10px;
+    opacity: 0;
+    animation: fadeIn 0.7s ease forwards;
+}
+
+@keyframes fadeIn {
+    0%   { transform: translateY(3px); opacity: 0; }
+    100% { transform: translateY(0);   opacity: 1; }
+}
+
+/* ---- 夢状態：画面揺らぎ（ログウィンドウ全体） ------------------------ */
+.dream-wobble {
+    animation: wobble 2.2s ease-in-out infinite;
+}
+
+@keyframes wobble {
+    0%   { transform: translate(0,0); }
+    25%  { transform: translate(1px, -1px); }
+    50%  { transform: translate(-1px, 1px); }
+    75%  { transform: translate(1px, 1px); }
+    100% { transform: translate(0,0); }
+}
+
+/* ---- 状態別文字色 ---------------------------------------------------- */
+.dream  { color: #ff4d7a; }
+.awaken { color: #6ab0ff; }
+
+/* ---- フッター -------------------------------------------------------- */
+#footer {
+    padding: 12px 16px;
+    font-weight: bold;
+    background: #000;
+    border-top: 1px solid #333;
+    transition: background 1s, color 1s;
+}
+</style>
+</head>
+
+<body>
+
+<div id="container">
+    <div id="header">Implementing ????????</div>
+    <div id="log-window"></div>
+    <div id="footer">夢カウンター： 0</div>
+</div>
+
+<script>
+
+let dreamCounter = 0;
+
+const logsNeutral = [
+    "リスが起床した",
+    "キツネが巣穴の前で伸びをしている",
+    "ウサギが草を食んでいる",
+    "森の風が静かに流れている"
+];
+
+const logsDream = [
+    "森が反転し、木々が空へ落ちていく",
+    "リスが光をまといながら時速300kmで走った",
+    "空中に穴が開き、動物たちがその中へ舞い上がった"
+];
+
+const logsAwaken = [
+    "観測者の影が観測者と別方向へ歩き出した",
+    "観測者の視線データがログに記録された",
+    "森の輪郭がコード化され、解析が始まった"
+];
+
+function addLog(text, cssClass="") {
+    const logWindow = document.getElementById("log-window");
+
+    const line = document.createElement("div");
+    line.className = "log-line " + cssClass;
+
+    const now = new Date();
+    const timestamp = now.toTimeString().slice(0, 5);
+
+    line.textContent = `> ${timestamp}  ${text}`;
+    logWindow.appendChild(line);
+
+    logWindow.scrollTop = logWindow.scrollHeight;
+}
+
+function updateDreamCounter() {
+    const delta = Math.floor(Math.random() * 3) - 1;
+    dreamCounter += delta;
+
+    document.getElementById("footer").textContent =
+        `夢カウンター： ${dreamCounter}`;
+
+    const logWindow = document.getElementById("log-window");
+
+    // UI エフェクト切り替え
+    logWindow.classList.remove("dream-wobble", "dream-effect", "awaken-effect");
+
+    if (dreamCounter >= 1) {
+        logWindow.classList.add("dream-wobble", "dream-effect");
+    } else if (dreamCounter <= -1) {
+        logWindow.classList.add("awaken-effect");
+    }
+}
+
+function generateLog() {
+    let text = "", cls = "";
+
+    if (dreamCounter >= 1) {
+        text = logsDream[Math.floor(Math.random() * logsDream.length)];
+        cls = "dream";
+    }
+    else if (dreamCounter <= -1) {
+        text = logsAwaken[Math.floor(Math.random() * logsAwaken.length)];
+        cls = "awaken";
+    }
+    else {
+        text = logsNeutral[Math.floor(Math.random() * logsNeutral.length)];
+    }
+
+    addLog(text, cls);
+}
+
+addLog("システム起動");
+generateLog();
+
+setInterval(() => {
+    updateDreamCounter();
+    generateLog();
+}, 10000);
+</script>
+</body>
+</html>
