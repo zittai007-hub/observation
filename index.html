@@ -2,220 +2,470 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Implementing ????????</title>
-
-<!-- ■ デジタル風フォント Orbitron を読み込み -->
+<title>Implementing Squirrel - Life Simulation</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500&display=swap" rel="stylesheet">
-
 <style>
-/* ---- 全体 ------------------------------------------------------ */
+/* ---- 全体設定 -------------------------------------------------- */
 body {
     font-family: "Orbitron", "Fira Code", monospace;
-    background: #111; /* 画面全体を暗く */
+    background: #050505;
     margin: 0;
     padding: 0;
     color: #fff;
+    min-height: 100vh;
 }
 
 #container {
-    width: 90%;
-    max-width: 900px;
-    margin: 32px auto;
-    border-radius: 10px;
-    overflow: hidden;
+    width: 95%;
+    max-width: 1200px;
+    margin: 20px auto;
     position: relative;
+    padding-bottom: 60px;
 }
 
-/* ---- ヘッダー ------------------------------------------------------ */
 #header {
     padding: 12px 16px;
     font-size: 20px;
     background: #000;
     border-bottom: 1px solid #333;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-radius: 4px;
 }
 
-/* ---- ログウィンドウ（黒背景・白文字） ------------------------------ */
-#log-window {
-    height: 70vh;
-    padding: 18px;
+#main-log-window {
+    height: 180px;
+    padding: 10px;
+    margin-bottom: 20px;
     overflow-y: auto;
     background: #000;
-    color: #fff;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+#dream-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-start;
+}
+
+.sub-window {
+    width: 300px;
+    height: 250px;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
     position: relative;
+    overflow: hidden;
+    animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    flex-grow: 1;
+    min-width: 250px;
+    max-width: 100%;
 }
 
-/* ---- ログ周囲の「もや / 棘」の共通設定 ----------------------------- */
-#log-window::before,
-#log-window::after {
-    content: "";
-    position: absolute;
-    inset: -20px; /* ログ枠の外側にエフェクトを置く */
-    pointer-events: none;
-    z-index: -1;
-    opacity: 0;
-    transition: opacity 1s ease;
+@keyframes popIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
 }
 
-/* ---- 夢状態：白いもや ------------------------------------------------ */
-.dream-effect::before {
-    background: radial-gradient(circle at 50% 50%,
-                rgba(255,255,255,0.15), rgba(255,255,255,0.0) 70%);
-    filter: blur(30px);
-    opacity: 1;
+.sub-header {
+    background: #222;
+    padding: 5px 10px;
+    font-size: 0.8rem;
+    color: #ff7096;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
 }
 
-/* ---- 覚醒状態：棘（スパイク） --------------------------------------- */
-.awaken-effect::before {
-    background:
-        repeating-linear-gradient(45deg,
-            rgba(0,150,255,0.25) 0 2px,
-            rgba(0,0,0,0) 2px 8px);
-    opacity: 0.4;
-    filter: blur(1px);
+.sub-log-area {
+    flex: 1;
+    padding: 8px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+    color: #ddd;
 }
 
-/* ---- 覚醒状態の補助スパイク ---------------------------------------- */
-.awaken-effect::after {
-    background:
-        repeating-linear-gradient(-45deg,
-            rgba(0,150,255,0.25) 0 2px,
-            rgba(0,0,0,0) 2px 8px);
-    opacity: 0.4;
-    filter: blur(1px);
-}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #000; }
+::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
 
-/* ---- ログ行のアニメーション ---------------------------------------- */
-.log-line {
-    margin-bottom: 10px;
-    opacity: 0;
-    animation: fadeIn 0.7s ease forwards;
-}
+/* ---- ログ行のデザイン ------------------------------------------ */
+.log-line { margin-bottom: 4px; line-height: 1.4; word-break: break-all; animation: fadeIn 0.3s ease; }
+.log-line.system { color: #0f0; }
+.log-line.awaken { color: #6ab0ff; }
+.log-line.error  { color: #f00; }
+.log-line.chaos  { color: #ff7096; text-shadow: 0 0 2px rgba(255, 112, 150, 0.4); }
+/* 状態ログ用の色（少し暗めにするなど） */
+.log-line.sleep { color: #8899a6; font-style: italic; }
+.log-line.eat   { color: #e8b382; }
 
 @keyframes fadeIn {
-    0%   { transform: translateY(3px); opacity: 0; }
-    100% { transform: translateY(0);   opacity: 1; }
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- 夢状態：画面揺らぎ（ログウィンドウ全体） ------------------------ */
-.dream-wobble {
-    animation: wobble 2.2s ease-in-out infinite;
-}
-
-@keyframes wobble {
-    0%   { transform: translate(0,0); }
-    25%  { transform: translate(1px, -1px); }
-    50%  { transform: translate(-1px, 1px); }
-    75%  { transform: translate(1px, 1px); }
-    100% { transform: translate(0,0); }
-}
-
-/* ---- 状態別文字色 ---------------------------------------------------- */
-.dream  { color: #ff4d7a; }
-.awaken { color: #6ab0ff; }
-
-/* ---- フッター -------------------------------------------------------- */
 #footer {
-    padding: 12px 16px;
-    font-weight: bold;
+    position: fixed;
+    bottom: 0; left: 0; width: 100%;
+    padding: 10px 20px;
     background: #000;
     border-top: 1px solid #333;
-    transition: background 1s, color 1s;
+    display: flex;
+    justify-content: space-between;
+    z-index: 100;
+    box-sizing: border-box;
 }
+.dream-active { box-shadow: 0 0 10px rgba(255, 112, 150, 0.2); border-color: #ff7096 !important; }
 </style>
 </head>
 
 <body>
 
 <div id="container">
-    <div id="header">Implementing ????????</div>
-    <div id="log-window"></div>
-    <div id="footer">夢カウンター： 0</div>
+    <div id="header">
+        <span>Parallel Dream Processor</span>
+        <span style="font-size: 12px; color: #888;">Ver 4.0 Life Simulation</span>
+    </div>
+    <div id="main-log-window"></div>
+    <div id="dream-container"></div>
+</div>
+
+<div id="footer">
+    <span id="status-text">Status: Initializing</span>
+    <span id="counter-display">Dream Depth: 0</span>
 </div>
 
 <script>
+// ================================================================
+// データ定義
+// ================================================================
+
+// 0-41:陸上, 42-57:水棲, 58-77:昆虫, 78-99:植物
+const logsCreature = [
+"オオカミ", "カワウソ", "ゾウガメ", "ゾウ", "カバ", "トラ", "ライオン", "カイウサギ", "アカカンガルー", "キリン", "マレーグマ", "ホシガメ", "アヒル", "キツネ", "ヤマネコ", "イノシシ", "エゾジカ", "リス", "ネズミ", "アザラシ", "ジュゴン", "スナメリ", "タヌキ", "テン", "ヤギ", "ノマウマ", "モモンガ", "ハクビシン", "ムササビ", "ウシ", "ブタ", "ニワトリ", "ラッコ", "カピバラ", "パンダ", "サイ", "アリクイ", "カカポ", "コウモリ", "キツツキ", "キジバト", "アマガエル", // 41まで(陸)
+"アジ", "アンコウ", "オジサン", "サケ", "コイ", "エイ", "イルカ", "クジラ", "サメ", "トビウオ", "マンボウ", "サバ", "ハマグリ", "シジミ", "ナマコ", "ウニ", // 57まで(水)
+"アゲハチョウ", "トンボ", "イナゴ", "バッタ", "テントウムシ", "ミツバチ", "クマゼミ", "ツクツクボウシ", "キリギリス", "カブトムシ", "ゲンジボタル", "コオロギ", "カゲロウ", "カ", "ナナフシ", "カマキリ", "ダンゴムシ", "クモ", "サソリ", "ハエ", // 77まで(虫)
+"オリーブ", "ツバキ", "サルスベリ", "バオバブ", "カエデ", "ススキ", "アサガオ", "キキョウ", "ハルジオン", "ウメ", "ブルーベリー", "ザクロ", "レンコン", "豆苗", "オジギソウ", "ドクダミ", "ハエトリグサ", "サルビア", "リュウゼツラン", "ドングリ", "チューリップ", "クローバー" // 99まで(草)
+];
+
+const logsObjects = [
+"遠吠え", "仲間", "寿命", "水中", "小石", "寿命", "最初の一歩", "長い首", "寿命", "長い鼻", "大きな耳", "奥歯", "大きく口", "水面から顔", "犬歯", "鋭い爪", "低く唸り声", "獲物", "唸り声", "たてがみ", "獲物", "鼻", "長い耳", "？mの距離", "草", "尻尾で体", "？mの距離", "長い首", "首バトル", "？cmの舌", "胸の模様", "木", "？cmの舌", "手足", "陸地", "?度で卵", "親の後ろ", "水面", "初めて見た{ i }", "耳", "ふさふさの尾", "石", "茂み", "鋭く遠く", "足音を立てないよう", "地面", "鋭い牙", "勢い", "立派な角", "鋭い声", "白いお尻", "頬袋", "木", "木の実", "チーズ", "機敏な動き", "狭い穴", "好みの岩場", "水から顔", "腹", "河川", "尾びれ", "あくび", "丸い頭", "つるりとした背中", "静かに息継ぎ", "寝たふり", "木", "人間", "木", "枝から枝へ", "後ろ足", "紙", "鳴き声", "角", "たてがみ", "辺り", "辺り", "飛膜", "木から木へ", "大きな瞳で何か", "顔", "電線", "農地", "空", "大きな飛膜", "木の幹", "草", "反芻", "角", "地面", "餌", "尻尾", "地面", "時", "羽", "貝", "昆布", "毛", "草", "目", "温泉", "笹", "木", "タイヤ", "角", "泥", "地面", "長い舌", "アリ塚", "鋭い爪", "森の床", "低い声", "木の実", "逆さま", "超音波", "寿命", "木", "幹", "寿命", "低い鳴き声", "大きな羽音", "首", "壁", "喉", "?mの距離", "口", "鱗", "群れ", "頭の提灯", "砂泥", "丸のみしようと口", "顎のヒゲ", "砂底", "海底", "川", "川底に卵", "命の危機", "口", "水面", "体", "ヒレ", "砂底に身", "宙返り", "波しぶき", "面白そうなもの", "頭から息", "潮", "大きな尾びれ", "海面", "背びれ", "獲物", "白目", "水面", "大きな胸ビレ", "波の上", "ヒレ", "水面", "おちょぼ口", "群れ", "青緑色の背中", "回遊", "固く殻", "砂の中から水管", "砂底", "小さな殻", "水管", "砂底", "海底", "体", "砂泥", "鋭いトゲ", "昆布", "管足", "花の蜜", "美しい羽", "空", "空", "獲物", "水面", "群れ", "地面", "稲の葉", "地面", "羽", "新たな草", "植物の茎", "硬い翅", "アブラムシ", "花の蜜", "花粉", "ダンス", "透明な羽", "大きな音", "樹に口", "夏の終わり", "複雑なリズム", "透明な羽", "羽", "触角", "獲物", "角", "硬い翅", "樹液", "光", "水辺", "夜露", "羽", "涼やかな音", "長い触角", "透明な羽", "空", "水面", "人間の横", "美味しそうな血", "針", "長い足", "体", "葉", "首", "鎌", "獲物", "体", "暗い場所", "枯れ葉", "糸", "網", "獲物", "ハサミ", "毒針", "砂の上", "手", "宙", "壁", "葉", "実", "太陽の光", "赤い花", "葉", "また一つ花", "鮮やかな花", "古い樹皮", "風", "幹に水", "根のような枝", "サバンナ", "葉", "葉っぱ", "種", "穂", "綿毛", "満月", "ツル", "花", "種", "蕾", "星形の花", "紫色の花弁", "蕾", "薄紅色の花", "春風", "蕾", "香り", "実", "鈴のような花", "実", "葉", "朱色の花", "実", "熟れた実", "泥中に茎", "水面に葉", "ハス", "光", "茎", "再び芽", "葉", "茎", "ゆっくりと葉", "白い十字の花", "独特の香り", "ハート形の葉", "葉", "獲物", "素早く葉", "甘い蜜", "蜜", "蜜", "鋭いトゲ", "空高く花茎", "最期の花", "重力", "地面", "芽", "光合成", "風", "?枚の花びら", "新たな茎", "白い花", "?つ葉"
+];
+
+const logsActions = [
+"した", "見つけた", "迎えた", "素早く泳いだ", "手で転がした", "迎えた", "踏み出した", "伸ばした", "迎えた", "高く上げた", "パタつかせた", "生え変わらせた", "開けた", "出した", "伸ばし続けている", "研いだ", "あげた", "見つけた", "あげている", "揺らした", "見つけた", "ピクつかせた", "立てた", "跳ねた", "噛もうとしている", "支えた", "跳ねた", "伸ばした", "している", "出した", "見せびらかしている", "よじ登った", "伸ばした", "引っ込めた", "歩いた", "産んだ", "付いていっている", "泳いだ", "親と思った", "ピンと立てた", "揺らした", "つついた", "見つめた", "睨んだ", "歩いた", "掘り返した", "見せた", "つけて突進した", "掲げた", "出した", "見せた", "膨らませている", "素早く登った", "見つけた", "見つけた", "した", "潜った", "探している", "出した", "見せた", "泳いでいる", "揺らした", "をした", "出した", "見せた", "した", "をした", "見上げている", "仲間だと思った", "素早く登った", "走っている", "使って立った", "食べた", "あげている", "突き出した", "揺らした", "見回した", "走っている", "広げた", "滑空した", "見つめている", "こすっている", "器用に渡った", "素早く駆けた", "滑空した", "広げた", "ハグした", "食んだ", "行った", "突き出した", "掘った", "平らげた", "振った", "つついた", "告げた", "羽ばたかせた", "割った", "巻いた", "繕った", "食んだ", "細めた", "楽しんでいる", "頬張った", "登った", "転がした", "突き出した", "浴びた", "揺らした", "伸ばした", "壊しそうとしている", "立てた", "歩いた", "響かせた", "食べた", "楽しんでいる", "発した", "迎えた", "激しくつついた", "垂直に登った", "迎えた", "響かせた", "立てた", "振りながら歩いている", "登った", "膨らませた", "跳ねた", "素早く動かしている", "きらめかせた", "成した", "揺らした", "潜った", "開けた", "動かした", "つついた", "泳いだ", "力強く遡っている", "産んだ", "免れた", "パクパクさせた", "跳ねた", "じっとさせている", "大きく羽ばたかせた", "隠した", "をした", "あげた", "見つけた", "吐いた", "高く吹いた", "上げた", "豪快に跳ねた", "水面に出した", "追い詰めた", "剥いた", "勢いよく飛び出した", "広げた", "滑空した", "パタパタさせた", "漂っている", "開けた", "なして泳いだ", "きらめかせた", "をしている", "閉じた", "出した", "深く潜った", "固く閉じた", "わずかに出した", "潜った", "ゆっくり這った", "縮ませた", "飲み込んだ", "動かした", "見つけた", "伸ばした", "吸った", "広げた", "舞った", "飛んだ", "捕らえようとしている", "叩いた", "なした", "蹴って飛んだ", "みつけた", "蹴った", "広げた", "見つけた", "登った", "広げた", "発見した", "集めた", "運んだ", "踊った", "広げた", "響かせた", "刺した", "告げた", "刻んだ", "畳んだ", "震わせた", "動かした", "見つけた", "突き出した", "広げた", "見つけた", "放った", "舞った", "飲んだ", "擦り合わせた", "奏でた", "揺らした", "広げた", "舞った", "かすめた", "通り過ぎた", "見つけた", "刺した", "伸ばした", "揺らした", "かじった", "回した", "構えた", "捕らえた", "丸めた", "見つけて安心した", "食べた", "吐いた", "張った", "捕らえた", "カチカチした", "振り上げた", "歩いている", "擦り合わせた", "舞っている", "舐めている", "揺らした", "実らせた", "浴びた", "咲かせた", "光らせた", "落とした", "咲かせた", "落とした", "感じた", "蓄えている", "広げた", "見つめている", "赤く染めた", "広げた", "飛ばした", "なびかせている", "飛ばした", "見ている", "伸ばした", "開いた", "付けた", "膨らませた", "開いた", "広げた", "垂れた", "咲かせた", "感じた", "ほころばせた", "漂わせている", "膨らませた", "咲かせた", "青く染めた", "赤くした", "咲かせた", "弾けさせた", "落とした", "伸ばした", "広げた", "咲かせた", "浴びている", "まっすぐ伸ばしている", "伸ばした", "畳んだ", "垂れた", "開いた", "咲かせた", "漂わせている", "広げた", "広げて待ち構えている", "感じた", "閉じた", "蓄えた", "小学生に吸われた", "蝶々に吸われた", "構えた", "伸ばした", "咲かせた", "感じた", "転がっている", "吹いた", "をしている", "感じている", "開いた", "地面に這わせた", "咲かせた", "広げた"
+];
+
+const logsNeutral = ["システム待機中...", "静寂が続いている", "データバスに異常なし"];
+const logsAwaken  = ["観測者の瞳孔反応を検知", "現実との同期率が低下中", "メタデータ解析開始"];
+
+// ■ カテゴリ別 通常行動定義
+const actionData = {
+    LAND: {
+        sleepStart: "は眠りについた",
+        sleeping: "は寝ている・・・",
+        wakeUp: "は目を覚ました",
+        eatStart: "は何かを食べ始めた",
+        eating: ["は夢中になって食べている", "は顔を舐めまわしている", "はもぐもぐしている"],
+        eatEnd: "はお腹いっぱいになった",
+        normal: ["は周りを見渡した", "はとことこ歩いている", "はのんびりしている", "はあくびをした"]
+    },
+    WATER: {
+        sleepStart: "は水底で静止した",
+        sleeping: "は流れに身を任せている・・・",
+        wakeUp: "は再び泳ぎ出した",
+        eatStart: "は餌をついばみ始めた",
+        eating: ["は砂ごと餌を吸い込んでいる", "は水草を食んでいる", "は何かを飲み込んでいる"],
+        eatEnd: "は満足して泳ぎ去った",
+        normal: ["はゆったりと泳いでいる", "は水面に波紋を作った", "は泡を吐いた", "は急旋回した"]
+    },
+    INSECT: {
+        sleepStart: "は葉の裏で動きを止めた",
+        sleeping: "はじっとしている・・・",
+        wakeUp: "は触角を動かし始めた",
+        eatStart: "は食事を開始した",
+        eating: ["は口器を動かしている", "は無心に齧っている", "は樹液を吸っている"],
+        eatEnd: "は食事を終えた",
+        normal: ["は翅を震わせた", "は忙しなく動き回っている", "は触角の手入れをしている", "は何かを警戒している"]
+    },
+    PLANT: {
+        sleepStart: "は花弁を閉じた",
+        sleeping: "は休眠している・・・",
+        wakeUp: "は朝日を浴びて開いた",
+        eatStart: "は根から養分を吸い上げ始めた",
+        eating: ["は光合成をしている", "は水を蓄えている", "は太陽の方へ葉を向けた"],
+        eatEnd: "は十分に生長した",
+        normal: ["は風に揺れている", "は静かに佇んでいる", "は種を飛ばす準備をしている", "は雨粒を弾いた"]
+    }
+};
+
+// ================================================================
+// 変数・ステート管理
+// ================================================================
 
 let dreamCounter = 0;
+let isCrashed = false;
+let log_corrector = []; 
+let activeWindows = {}; 
 
-const logsNeutral = [
-    "リスが起床した",
-    "キツネが巣穴の前で伸びをしている",
-    "ウサギが草を食んでいる",
-    "森の風が静かに流れている"
-];
+// ================================================================
+// 関数定義
+// ================================================================
 
-const logsDream = [
-    "森が反転し、木々が空へ落ちていく",
-    "リスが光をまといながら時速300kmで走った",
-    "空中に穴が開き、動物たちがその中へ舞い上がった"
-];
+// カテゴリ判定用ヘルパー関数
+function getCreatureType(index) {
+    if (index <= 41) return "LAND";
+    if (index <= 57) return "WATER";
+    if (index <= 77) return "INSECT";
+    return "PLANT";
+}
 
-const logsAwaken = [
-    "観測者の影が観測者と別方向へ歩き出した",
-    "観測者の視線データがログに記録された",
-    "森の輪郭がコード化され、解析が始まった"
-];
-
-function addLog(text, cssClass="") {
-    const logWindow = document.getElementById("log-window");
-
+function addMainLog(text, type = "") {
+    const win = document.getElementById("main-log-window");
     const line = document.createElement("div");
-    line.className = "log-line " + cssClass;
-
-    const now = new Date();
-    const timestamp = now.toTimeString().slice(0, 5);
-
-    line.textContent = `> ${timestamp}  ${text}`;
-    logWindow.appendChild(line);
-
-    logWindow.scrollTop = logWindow.scrollHeight;
+    const time = new Date().toTimeString().slice(0, 8);
+    line.className = `log-line ${type}`;
+    line.innerHTML = `<span style="opacity:0.5">[${time}]</span> ${text}`;
+    win.appendChild(line);
+    win.scrollTop = win.scrollHeight;
 }
 
 function updateDreamCounter() {
+    if(isCrashed) return;
+
     const delta = Math.floor(Math.random() * 3) - 1;
+    const oldCounter = dreamCounter;
     dreamCounter += delta;
 
-    document.getElementById("footer").textContent =
-        `夢カウンター： ${dreamCounter}`;
+    document.getElementById("counter-display").textContent = `Dream Depth: ${dreamCounter}`;
+    const statusText = document.getElementById("status-text");
 
-    const logWindow = document.getElementById("log-window");
+    if (dreamCounter > 0) {
+        statusText.textContent = "Status: Dreaming";
+        statusText.style.color = "#ff7096";
+    } else if (dreamCounter < 0) {
+        statusText.textContent = "Status: Awakening";
+        statusText.style.color = "#6ab0ff";
+    } else {
+        statusText.textContent = "Status: Neutral";
+        statusText.style.color = "#fff";
+    }
 
-    // UI エフェクト切り替え
-    logWindow.classList.remove("dream-wobble", "dream-effect", "awaken-effect");
+    if (dreamCounter >= 10 || dreamCounter <= -10) {
+        isCrashed = true;
+        addMainLog("FATAL ERROR: Counter Limit Exceeded.", "error");
+        statusText.textContent = "SYSTEM HALTED";
+        return;
+    }
 
-    if (dreamCounter >= 1) {
-        logWindow.classList.add("dream-wobble", "dream-effect");
-    } else if (dreamCounter <= -1) {
-        logWindow.classList.add("awaken-effect");
+    if (dreamCounter > 0 && dreamCounter > oldCounter) {
+        for (let i = Math.max(1, oldCounter + 1); i <= dreamCounter; i++) {
+            openDreamWindow(i);
+        }
+    }
+    if (oldCounter > 0 && dreamCounter < oldCounter) {
+        for (let i = oldCounter; i > Math.max(0, dreamCounter); i--) {
+            closeDreamWindow(i);
+        }
+    }
+    
+    if (dreamCounter <= 0) {
+        generateMainLog();
     }
 }
 
-function generateLog() {
-    let text = "", cls = "";
+function openDreamWindow(depth) {
+    if (activeWindows[depth]) return; 
 
-    if (dreamCounter >= 1) {
-        text = logsDream[Math.floor(Math.random() * logsDream.length)];
-        cls = "dream";
-    }
-    else if (dreamCounter <= -1) {
-        text = logsAwaken[Math.floor(Math.random() * logsAwaken.length)];
-        cls = "awaken";
+    const creatureIdx = Math.floor(Math.random() * logsCreature.length);
+    const creatureName = logsCreature[creatureIdx];
+    const type = getCreatureType(creatureIdx);
+
+    const container = document.getElementById("dream-container");
+    const div = document.createElement("div");
+    div.className = "sub-window dream-active";
+    div.id = `window-${depth}`;
+    
+    div.innerHTML = `
+        <div class="sub-header">
+            <span>Layer #${depth}: ${creatureName}</span>
+            <span id="count-${depth}">0 logs</span>
+        </div>
+        <div class="sub-log-area" id="log-area-${depth}"></div>
+    `;
+    container.appendChild(div);
+
+    activeWindows[depth] = {
+        depth: depth,
+        creatureIdx: creatureIdx,
+        creature: creatureName,
+        type: type, // カテゴリ保存
+        count: 0,
+        element: div,
+        timerId: null,
+        
+        // ■ ステート管理用
+        state: "NORMAL", // NORMAL, SLEEP, EAT
+        stateTimer: 0    // 残りターン数
+    };
+
+    addMainLog(`Process #${depth} (${type}) initialized. Subject: ${creatureName}`, "system");
+
+    const speed = 2000 + Math.random() * 3000;
+    
+    activeWindows[depth].timerId = setInterval(() => {
+        generateSubLog(depth);
+    }, speed);
+}
+
+function closeDreamWindow(depth) {
+    const winData = activeWindows[depth];
+    if (!winData) return;
+
+    clearInterval(winData.timerId);
+
+    log_corrector[depth] = {
+        creature: winData.creature,
+        count: winData.count
+    };
+
+    addMainLog(`Process #${depth} terminated. Saved: [${winData.creature}, ${winData.count} logs]`, "system");
+
+    winData.element.style.transform = "scale(0)";
+    winData.element.style.opacity = "0";
+    setTimeout(() => {
+        if(winData.element.parentNode) {
+            winData.element.parentNode.removeChild(winData.element);
+        }
+    }, 400);
+
+    delete activeWindows[depth];
+}
+
+// === ログ生成ロジック（ステートマシン実装） ===
+function generateSubLog(depth) {
+    const winData = activeWindows[depth];
+    if (!winData) return;
+
+    const data = actionData[winData.type];
+    let text = "";
+    let cssClass = "log-line";
+
+    // 1. 特殊状態（睡眠・食事）の継続処理
+    if (winData.state === "SLEEP") {
+        winData.stateTimer--;
+        if (winData.stateTimer <= 0) {
+            // 起床
+            winData.state = "NORMAL";
+            text = winData.creature + data.wakeUp;
+        } else {
+            // 睡眠中
+            text = winData.creature + data.sleeping;
+            cssClass += " sleep";
+        }
+    } 
+    else if (winData.state === "EAT") {
+        winData.stateTimer--;
+        if (winData.stateTimer <= 0) {
+            // 食事終了
+            winData.state = "NORMAL";
+            text = winData.creature + data.eatEnd;
+        } else {
+            // 食事中
+            text = winData.creature + data.eating[Math.floor(Math.random() * data.eating.length)];
+            cssClass += " eat";
+        }
     }
     else {
-        text = logsNeutral[Math.floor(Math.random() * logsNeutral.length)];
+        // 2. 新規行動決定
+        // 夢深度による狂気判定
+        const chaosRate = depth * 0.1;
+
+        if (Math.random() > chaosRate) {
+            // ---- 正常モード ----
+            const rand = Math.random();
+
+            if (rand < 0.05) { 
+                // 5% 睡眠開始 (5~10ターン)
+                winData.state = "SLEEP";
+                winData.stateTimer = Math.floor(Math.random() * 6) + 5; 
+                text = winData.creature + data.sleepStart;
+            } 
+            else if (rand < 0.15) { 
+                // 10% 食事開始 (3~5ターン)
+                winData.state = "EAT";
+                winData.stateTimer = Math.floor(Math.random() * 3) + 3;
+                text = winData.creature + data.eatStart;
+            } 
+            else if (rand < 0.50) {
+                // 35% 単発通常行動
+                text = winData.creature + data.normal[Math.floor(Math.random() * data.normal.length)];
+            } 
+            else {
+                // 50% 特有ログ（テンプレート・整合性あり）
+                const baseIdx = winData.creatureIdx * 3;
+                r_num = Math.floor(Math.random() * 3)
+                if (baseIdx + 2 < logsObjects.length) {
+                    const offsetO = r_num;
+                    const offsetA = r_num;
+                    text = `${winData.creature}が${logsObjects[baseIdx + offsetO]}を${logsActions[baseIdx + offsetA]}`;
+                } else {
+                    text = `${winData.creature}が何かを見つめている`;
+                }
+            }
+        } else {
+            // ---- 混沌モード（支離滅裂） ----
+            const obj = logsObjects[Math.floor(Math.random() * logsObjects.length)];
+            const act = logsActions[Math.floor(Math.random() * logsActions.length)];
+            text = `${winData.creature}が${obj}を${act}`;
+            cssClass += " chaos";
+        }
     }
 
-    addLog(text, cls);
+    // HTML出力
+    const area = document.getElementById(`log-area-${depth}`);
+    const line = document.createElement("div");
+    line.textContent = `> ${text}`;
+    line.className = cssClass;
+    area.appendChild(line);
+    area.scrollTop = area.scrollHeight;
+
+    winData.count++;
+    document.getElementById(`count-${depth}`).textContent = `${winData.count} logs`;
 }
 
-addLog("システム起動");
-generateLog();
+function generateMainLog() {
+    let text = "";
+    let type = "";
 
-setInterval(() => {
-    updateDreamCounter();
-    generateLog();
-}, 10000);
+    if (dreamCounter <= -1) {
+        text = logsAwaken[Math.floor(Math.random() * logsAwaken.length)];
+        type = "awaken";
+    } else {
+        text = logsNeutral[Math.floor(Math.random() * logsNeutral.length)];
+        type = "";
+    }
+    
+    if(Math.random() > 0.5) {
+        addMainLog(text, type);
+    }
+}
+
+// ================================================================
+// 実行開始
+// ================================================================
+
+addMainLog("システム起動... 生態系シミュレータ接続", "system");
+
+setInterval(updateDreamCounter, 3000);
+
 </script>
 </body>
 </html>
