@@ -2,469 +2,878 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Implementing Squirrel - Life Simulation</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500&display=swap" rel="stylesheet">
+<title>Implementing Squirrel - Final Fix</title>
+<link href="https://fonts.googleapis.com/css2?family=Cutive+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 /* ---- 全体設定 -------------------------------------------------- */
 body {
-    font-family: "Orbitron", "Fira Code", monospace;
-    background: #050505;
-    margin: 0;
-    padding: 0;
-    color: #fff;
-    min-height: 100vh;
+    font-family: "Cutive Mono", "Orbitron", monospace;
+    background: #ffffff;
+    margin: 0; padding: 0; color: #111;
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+    align-items: center;
+    user-select: none;
 }
 
+/* ---- 外枠レイヤー ---------------------------------------------- */
+#outer-layers-container {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+    display: flex; justify-content: center; align-items: center;
+}
+.outer-frame {
+    position: absolute; width: 95%; max-width: 1200px; 
+    height: calc(100vh - 140px);
+    top: 20px;
+    border: 2px solid #000; background: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 20px rgba(0,0,0,0.1); border-radius: 4px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.outer-frame::before {
+    content: "System Layer [OUTER]"; display: block; padding: 8px;
+    background: #f0f0f0; border-bottom: 2px solid #000; font-size: 12px; font-weight: bold;
+}
+
+/* ---- 下部固定バー (Bottom HUD) --------------------------------- */
+#bottom-hud {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 110px;
+    background: #fff; border-top: 3px solid #000;
+    z-index: 3000;
+    display: flex; align-items: center; justify-content: center; gap: 20px;
+    padding: 10px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+    box-sizing: border-box;
+}
+
+.hud-panel {
+    background: #fff; border: 2px solid #000; padding: 8px 15px;
+    box-shadow: 3px 3px 0px rgba(0,0,0,0.1);
+    display: flex; flex-direction: column; justify-content: center;
+    height: 100%; box-sizing: border-box;
+    min-width: 120px; position: relative;
+}
+.hud-label { font-size: 9px; font-weight: bold; color: #555; letter-spacing: 1px; margin-bottom: 3px; }
+.hud-value { font-size: 20px; font-weight: 900; font-family: "Orbitron"; line-height: 1; }
+.hud-value.depth { font-size: 28px; }
+.hud-value.depth.dream { color: #e91e63; }
+.hud-value.depth.wake { color: #0056b3; }
+
+/* Stabilized Indicator */
+#stabilizer-indicator {
+    position: absolute; top: -10px; right: -10px;
+    background: #00c853; color: #fff; font-size: 9px; padding: 2px 6px;
+    border: 1px solid #000; display: none; font-weight: bold;
+    animation: pulse 1s infinite;
+}
+@keyframes pulse { 0%{opacity:1;} 50%{opacity:0.5;} 100%{opacity:1;} }
+
+.item-slot {
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; padding: 5px; border: 1px solid transparent; transition: 0.2s;
+}
+.item-slot:hover { background: #eee; border-color: #ccc; }
+.item-icon { font-size: 24px; }
+.item-qty { font-weight: bold; font-family: "Orbitron"; font-size: 18px; }
+
+.hud-passive-list { 
+    display: flex; flex-wrap: wrap; gap: 5px; max-width: 300px; 
+    overflow-y: auto; max-height: 60px;
+}
+.hud-passive-badge {
+    font-size: 10px; padding: 2px 5px; background: #000; color: #fff;
+    display: flex; gap: 5px; align-items: center; border-radius: 2px;
+}
+.durability-dots { display: flex; gap: 1px; }
+.dot { width: 3px; height: 3px; background: #0f0; border-radius: 50%; }
+
+/* ---- メインコンテンツ ------------------------------------------ */
 #container {
-    width: 95%;
-    max-width: 1200px;
-    margin: 20px auto;
-    position: relative;
-    padding-bottom: 60px;
+    width: 95%; max-width: 1200px; 
+    height: calc(100vh - 140px);
+    margin-top: 20px;
+    position: relative; z-index: 100; background: #fff; 
+    border: 3px solid #000; border-radius: 4px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    display: flex; flex-direction: column;
+    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    overflow: hidden; 
 }
 
 #header {
-    padding: 12px 16px;
-    font-size: 20px;
-    background: #000;
-    border-bottom: 1px solid #333;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    border-radius: 4px;
+    flex: 0 0 auto; padding: 12px 16px; font-size: 20px; font-weight: bold;
+    background: #fff; border-bottom: 3px solid #000;
+    display: flex; justify-content: space-between; align-items: center;
+}
+
+#main-content-area {
+    flex: 1 1 auto; padding: 20px; overflow-y: auto; position: relative;
+    background-image: radial-gradient(#ddd 1px, transparent 1px); background-size: 20px 20px;
 }
 
 #main-log-window {
-    height: 180px;
-    padding: 10px;
-    margin-bottom: 20px;
-    overflow-y: auto;
-    background: #000;
-    border: 1px solid #444;
-    border-radius: 4px;
-    font-size: 0.9rem;
+    height: 150px; padding: 10px; margin-bottom: 20px; background: #fff;
+    border: 2px solid #000; font-size: 0.9rem; overflow-y: auto;
+    box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
 }
 
 #dream-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: flex-start;
-}
-
-.sub-window {
-    width: 300px;
-    height: 250px;
-    background: #111;
-    border: 1px solid #333;
-    border-radius: 4px;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    overflow: hidden;
-    animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    flex-grow: 1;
-    min-width: 250px;
-    max-width: 100%;
-}
-
-@keyframes popIn {
-    from { transform: scale(0.8); opacity: 0; }
-    to   { transform: scale(1); opacity: 1; }
-}
-
-.sub-header {
-    background: #222;
-    padding: 5px 10px;
-    font-size: 0.8rem;
-    color: #ff7096;
-    border-bottom: 1px solid #333;
-    display: flex;
-    justify-content: space-between;
-}
-
-.sub-log-area {
-    flex: 1;
-    padding: 8px;
-    overflow-y: auto;
-    font-size: 0.8rem;
-    color: #ddd;
-}
-
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #000; }
-::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
-
-/* ---- ログ行のデザイン ------------------------------------------ */
-.log-line { margin-bottom: 4px; line-height: 1.4; word-break: break-all; animation: fadeIn 0.3s ease; }
-.log-line.system { color: #0f0; }
-.log-line.awaken { color: #6ab0ff; }
-.log-line.error  { color: #f00; }
-.log-line.chaos  { color: #ff7096; text-shadow: 0 0 2px rgba(255, 112, 150, 0.4); }
-/* 状態ログ用の色（少し暗めにするなど） */
-.log-line.sleep { color: #8899a6; font-style: italic; }
-.log-line.eat   { color: #e8b382; }
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to   { opacity: 1; transform: translateY(0); }
+    display: flex; flex-wrap: wrap; gap: 15px; justify-content: flex-start; padding-bottom: 40px;
 }
 
 #footer {
-    position: fixed;
-    bottom: 0; left: 0; width: 100%;
-    padding: 10px 20px;
-    background: #000;
-    border-top: 1px solid #333;
-    display: flex;
-    justify-content: space-between;
-    z-index: 100;
-    box-sizing: border-box;
+    flex: 0 0 auto; padding: 5px 20px; background: #fff; border-top: 3px solid #000;
+    display: flex; justify-content: flex-end; font-size: 0.9rem; font-weight: bold;
 }
-.dream-active { box-shadow: 0 0 10px rgba(255, 112, 150, 0.2); border-color: #ff7096 !important; }
+
+/* ---- 夢ウィンドウ ---------------------------------------------- */
+.sub-window {
+    width: 240px; height: 160px; background: #fff; border: 2px solid #000;
+    display: flex; flex-direction: column; animation: popIn 0.4s ease; flex-grow: 1;
+    box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+}
+@keyframes popIn { from {transform:scale(0.8); opacity:0;} to {transform:scale(1); opacity:1;} }
+.sub-header { background: #000; padding: 5px 10px; font-size: 0.8rem; color: #fff; display: flex; justify-content: space-between; font-weight: bold;}
+.sub-log-area { flex: 1; padding: 5px; overflow-y: auto; font-size: 0.8rem; color: #333; }
+.dream-active .sub-header { background: #e91e63; }
+
+/* ---- パッシブ選択モーダル -------------------------------------- */
+#passive-modal {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,255,255,0.95); z-index: 5000;
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+}
+.passive-choice-container {
+    display: flex; gap: 20px; margin-top: 20px;
+}
+.passive-card {
+    width: 200px; height: 260px; border: 3px solid #000; background: #fff;
+    padding: 15px; cursor: pointer; transition: 0.2s;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    box-shadow: 5px 5px 0px rgba(0,0,0,0.2); position: relative;
+}
+.passive-card:hover { transform: translateY(-5px); box-shadow: 8px 8px 0px rgba(0,0,0,0.3); background: #f9f9f9; }
+.passive-card.owned { opacity: 0.5; pointer-events: none; border-color: #999; }
+.passive-card.owned::after { content: "OWNED"; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg); font-size: 24px; color: #999; border: 2px solid #999; padding: 5px; }
+
+.p-icon { font-size: 40px; margin-bottom: 10px; }
+.p-name { font-weight: 900; margin-bottom: 10px; font-family: "Orbitron"; }
+.p-desc { font-size: 12px; color: #555; }
+.p-level { margin-top: auto; font-weight: bold; background: #000; color: #fff; padding: 2px 10px; }
+
+#modal-current-passives {
+    margin-top: 20px; padding: 10px; border-top: 2px dashed #ccc; width: 80%; text-align: center;
+}
+.modal-badge { display: inline-block; padding: 2px 6px; background: #000; color: #fff; font-size: 10px; margin: 2px; }
+
+/* ---- アイテム使用モーダル -------------------------------------- */
+#item-modal {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: #fff; border: 3px solid #000; padding: 20px; z-index: 6000;
+    display: none; flex-direction: column; align-items: center; box-shadow: 10px 10px 0px rgba(0,0,0,0.2);
+}
+
+/* ---- その他UI -------------------------------------------------- */
+button {
+    background: #fff; color: #000; border: 2px solid #000; padding: 5px 15px;
+    font-family: inherit; font-weight: bold; cursor: pointer; transition: 0.2s;
+    box-shadow: 2px 2px 0px #000;
+}
+button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
+
+.log-line { margin-bottom: 3px; border-bottom: 1px dotted #eee; }
+.log-line.awaken { color: #0056b3; } 
+.log-line.system { font-weight: bold; }
+
+/* 清算演出 */
+#settlement-ui { position: absolute; top: 60px; right: 20px; display: flex; flex-direction: column; align-items: center; z-index: 500; }
+#settlement-count { font-size: 28px; color: #000; font-weight: 900; background:#fff; padding:0 10px; border: 2px solid #000; margin-bottom: 5px; }
+#settlement-box { width: 60px; height: 60px; border: 3px solid #000; display:flex; justify-content:center; align-items:center; background:#fff; position:relative; box-shadow: 4px 4px 0px rgba(0,0,0,0.2); }
+.box-shake { animation: shake 0.1s ease; }
+@keyframes shake { 0%{transform:scale(1);} 50%{transform:scale(1.1);} 100%{transform:scale(1);} }
+.sucking-log { position: absolute; color: #555; font-size: 10px; pointer-events: none; font-weight:bold; }
+
+/* 図鑑 */
+#zukan-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 6000; display: none; justify-content: center; align-items: center; }
+#zukan-content { width: 80%; height: 80%; background: #fff; border: 4px solid #000; padding: 20px; overflow-y: auto; position: relative; box-shadow: 10px 10px 0px rgba(0,0,0,0.1); }
+.achievement-item { border-bottom: 2px solid #eee; padding: 15px; display: flex; align-items: center; opacity: 0.4; }
+.achievement-item.unlocked { opacity: 1; background: #f9f9f9; border-left: 6px solid #000; }
+.ach-icon { font-size: 24px; margin-right: 15px; width: 40px; text-align: center; }
+
+#toast { position: fixed; bottom: 130px; left: 50%; transform: translateX(-50%); background: #000; color: #fff; padding: 15px 30px; display: none; z-index: 7000; animation: slideUp 0.5s ease; border-radius: 4px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); font-weight: bold; }
+@keyframes slideUp { from{transform:translate(-50%,20px);opacity:0;} to{transform:translate(-50%,0);opacity:1;} }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #f0f0f0; border-left: 1px solid #ccc; }
+::-webkit-scrollbar-thumb { background: #333; }
+
 </style>
 </head>
-
 <body>
+
+<div id="toast">Achievement Unlocked!</div>
+
+<div id="bottom-hud">
+    <div class="hud-panel" style="flex: 0 0 150px; text-align:center;">
+        <div class="hud-label">DREAM DEPTH</div>
+        <div id="stabilizer-indicator">STABILIZED</div> <div id="hud-depth-value" class="hud-value depth">0</div>
+        <div id="hud-status-text" style="font-size:10px; margin-top:2px;">NEUTRAL</div>
+    </div>
+
+    <div class="hud-panel" style="flex: 0 0 180px; text-align:center;">
+        <div class="hud-label">TOTAL DATA</div>
+        <div id="hud-total-logs" class="hud-value">0</div>
+    </div>
+
+    <div class="hud-panel" style="flex: 0 0 160px;">
+        <div class="hud-label">INVENTORY</div>
+        <div class="item-slot" onclick="openItemModal()" title="Dream Shifter">
+            <span class="item-icon">🧬</span>
+            <div>
+                <div style="font-size:10px;">Dream Shifter</div>
+                <div id="hud-shifter-count" class="item-qty">x0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hud-panel" style="flex: 1; align-items:flex-start;">
+        <div class="hud-label">ACTIVE PATCHES</div>
+        <div id="hud-passive-list" class="hud-passive-list">
+            <div style="font-size:10px; color:#999;">NONE</div>
+        </div>
+    </div>
+</div>
+
+<div id="outer-layers-container"></div>
+
+<div id="passive-modal">
+    <h2 style="border-bottom:3px solid #000; padding:10px;">SYSTEM INTERRUPT: SELECT PATCH</h2>
+    
+    <div id="modal-current-passives">
+        <div style="font-size:12px; margin-bottom:5px;">CURRENT STATUS:</div>
+        <div id="modal-passive-list-container" style="display:flex; justify-content:center; gap:5px; flex-wrap:wrap;"></div>
+    </div>
+
+    <div id="passive-choices" class="passive-choice-container"></div>
+</div>
+
+<div id="item-modal">
+    <h3>USE: Dream Shifter</h3>
+    <p>Modify Dream Counter?</p>
+    <div style="display:flex; gap:10px; margin-top:10px;">
+        <button onclick="useShifter(-1)">-1 (Deep)</button>
+        <button onclick="useShifter(1)">+1 (Wake)</button>
+    </div>
+    <button style="margin-top:20px; border:none; box-shadow:none; text-decoration:underline;" onclick="closeItemModal()">Cancel</button>
+</div>
 
 <div id="container">
     <div id="header">
-        <span>Parallel Dream Processor</span>
-        <span style="font-size: 12px; color: #888;">Ver 4.0 Life Simulation</span>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span>Parallel Dream Processor</span>
+        </div>
+        <button id="btn-zukan">ACHIEVEMENTS</button>
     </div>
-    <div id="main-log-window"></div>
-    <div id="dream-container"></div>
+    
+    <div id="main-content-area">
+        <div id="settlement-ui">
+            <div id="settlement-count">0</div>
+            <div id="settlement-box">
+                <span style="font-size:24px">📥</span>
+            </div>
+        </div>
+
+        <div id="main-log-window"></div>
+        <div id="dream-container"></div>
+    </div>
+
+    <div id="footer">
+        <span style="font-size:10px; color:#555;">SYSTEM READY...</span>
+    </div>
 </div>
 
-<div id="footer">
-    <span id="status-text">Status: Initializing</span>
-    <span id="counter-display">Dream Depth: 0</span>
+<div id="zukan-modal">
+    <div id="zukan-content">
+        <div id="zukan-close" style="position:absolute; top:10px; right:20px; color:#000; cursor:pointer; font-size:30px; font-weight:bold;">×</div>
+        <h2 style="color:#000; text-align:center; border-bottom:3px solid #000; padding-bottom:10px;">ACQUIRED LOGS</h2>
+        <div id="achievement-list"></div>
+    </div>
 </div>
 
 <script>
 // ================================================================
 // データ定義
 // ================================================================
-
-// 0-41:陸上, 42-57:水棲, 58-77:昆虫, 78-99:植物
-const logsCreature = [
-"オオカミ", "カワウソ", "ゾウガメ", "ゾウ", "カバ", "トラ", "ライオン", "カイウサギ", "アカカンガルー", "キリン", "マレーグマ", "ホシガメ", "アヒル", "キツネ", "ヤマネコ", "イノシシ", "エゾジカ", "リス", "ネズミ", "アザラシ", "ジュゴン", "スナメリ", "タヌキ", "テン", "ヤギ", "ノマウマ", "モモンガ", "ハクビシン", "ムササビ", "ウシ", "ブタ", "ニワトリ", "ラッコ", "カピバラ", "パンダ", "サイ", "アリクイ", "カカポ", "コウモリ", "キツツキ", "キジバト", "アマガエル", // 41まで(陸)
-"アジ", "アンコウ", "オジサン", "サケ", "コイ", "エイ", "イルカ", "クジラ", "サメ", "トビウオ", "マンボウ", "サバ", "ハマグリ", "シジミ", "ナマコ", "ウニ", // 57まで(水)
-"アゲハチョウ", "トンボ", "イナゴ", "バッタ", "テントウムシ", "ミツバチ", "クマゼミ", "ツクツクボウシ", "キリギリス", "カブトムシ", "ゲンジボタル", "コオロギ", "カゲロウ", "カ", "ナナフシ", "カマキリ", "ダンゴムシ", "クモ", "サソリ", "ハエ", // 77まで(虫)
-"オリーブ", "ツバキ", "サルスベリ", "バオバブ", "カエデ", "ススキ", "アサガオ", "キキョウ", "ハルジオン", "ウメ", "ブルーベリー", "ザクロ", "レンコン", "豆苗", "オジギソウ", "ドクダミ", "ハエトリグサ", "サルビア", "リュウゼツラン", "ドングリ", "チューリップ", "クローバー" // 99まで(草)
-];
-
+const logsCreature = ["オオカミ", "カワウソ", "ゾウガメ", "ゾウ", "カバ", "トラ", "ライオン", "カイウサギ", "アカカンガルー", "キリン", "マレーグマ", "ホシガメ", "アヒル", "キツネ", "ヤマネコ", "イノシシ", "エゾジカ", "リス", "ネズミ", "アザラシ", "ジュゴン", "スナメリ", "タヌキ", "テン", "ヤギ", "ノマウマ", "モモンガ", "ハクビシン", "ムササビ", "ウシ", "ブタ", "ニワトリ", "ラッコ", "カピバラ", "パンダ", "サイ", "アリクイ", "カカポ", "コウモリ", "キツツキ", "キジバト", "アマガエル", "アジ", "アンコウ", "オジサン", "サケ", "コイ", "エイ", "イルカ", "クジラ", "サメ", "トビウオ", "マンボウ", "サバ", "ハマグリ", "シジミ", "ナマコ", "ウニ", "アゲハチョウ", "トンボ", "イナゴ", "バッタ", "テントウムシ", "ミツバチ", "クマゼミ", "ツクツクボウシ", "キリギリス", "カブトムシ", "ゲンジボタル", "コオロギ", "カゲロウ", "カ", "ナナフシ", "カマキリ", "ダンゴムシ", "クモ", "サソリ", "ハエ", "オリーブ", "ツバキ", "サルスベリ", "バオバブ", "カエデ", "ススキ", "アサガオ", "キキョウ", "ハルジオン", "ウメ", "ブルーベリー", "ザクロ", "レンコン", "豆苗", "オジギソウ", "ドクダミ", "ハエトリグサ", "サルビア", "リュウゼツラン", "ドングリ", "チューリップ", "クローバー"];
+const targetCreatures = ["オオカミ", "カワウソ", "コウモリ", "キツツキ", "ゾウガメ", "ゾウ", "カバ", "トラ", "ライオン", "アマガエル", "カイウサギ", "アカカンガルー", "ドングリ", "キリン", "マレーグマ", "チューリップ", "クローバー", "ホシガメ", "アヒル"];
+const logsSystem = ["メモリ最適化", "ガベージコレクション", "デフラグメンテーション", "論理チェック", "キャッシュクリア", "スタックトレース", "例外処理", "プロセス強制終了"];
 const logsObjects = [
 "遠吠え", "仲間", "寿命", "水中", "小石", "寿命", "最初の一歩", "長い首", "寿命", "長い鼻", "大きな耳", "奥歯", "大きく口", "水面から顔", "犬歯", "鋭い爪", "低く唸り声", "獲物", "唸り声", "たてがみ", "獲物", "鼻", "長い耳", "？mの距離", "草", "尻尾で体", "？mの距離", "長い首", "首バトル", "？cmの舌", "胸の模様", "木", "？cmの舌", "手足", "陸地", "?度で卵", "親の後ろ", "水面", "初めて見た{ i }", "耳", "ふさふさの尾", "石", "茂み", "鋭く遠く", "足音を立てないよう", "地面", "鋭い牙", "勢い", "立派な角", "鋭い声", "白いお尻", "頬袋", "木", "木の実", "チーズ", "機敏な動き", "狭い穴", "好みの岩場", "水から顔", "腹", "河川", "尾びれ", "あくび", "丸い頭", "つるりとした背中", "静かに息継ぎ", "寝たふり", "木", "人間", "木", "枝から枝へ", "後ろ足", "紙", "鳴き声", "角", "たてがみ", "辺り", "辺り", "飛膜", "木から木へ", "大きな瞳で何か", "顔", "電線", "農地", "空", "大きな飛膜", "木の幹", "草", "反芻", "角", "地面", "餌", "尻尾", "地面", "時", "羽", "貝", "昆布", "毛", "草", "目", "温泉", "笹", "木", "タイヤ", "角", "泥", "地面", "長い舌", "アリ塚", "鋭い爪", "森の床", "低い声", "木の実", "逆さま", "超音波", "寿命", "木", "幹", "寿命", "低い鳴き声", "大きな羽音", "首", "壁", "喉", "?mの距離", "口", "鱗", "群れ", "頭の提灯", "砂泥", "丸のみしようと口", "顎のヒゲ", "砂底", "海底", "川", "川底に卵", "命の危機", "口", "水面", "体", "ヒレ", "砂底に身", "宙返り", "波しぶき", "面白そうなもの", "頭から息", "潮", "大きな尾びれ", "海面", "背びれ", "獲物", "白目", "水面", "大きな胸ビレ", "波の上", "ヒレ", "水面", "おちょぼ口", "群れ", "青緑色の背中", "回遊", "固く殻", "砂の中から水管", "砂底", "小さな殻", "水管", "砂底", "海底", "体", "砂泥", "鋭いトゲ", "昆布", "管足", "花の蜜", "美しい羽", "空", "空", "獲物", "水面", "群れ", "地面", "稲の葉", "地面", "羽", "新たな草", "植物の茎", "硬い翅", "アブラムシ", "花の蜜", "花粉", "ダンス", "透明な羽", "大きな音", "樹に口", "夏の終わり", "複雑なリズム", "透明な羽", "羽", "触角", "獲物", "角", "硬い翅", "樹液", "光", "水辺", "夜露", "羽", "涼やかな音", "長い触角", "透明な羽", "空", "水面", "人間の横", "美味しそうな血", "針", "長い足", "体", "葉", "首", "鎌", "獲物", "体", "暗い場所", "枯れ葉", "糸", "網", "獲物", "ハサミ", "毒針", "砂の上", "手", "宙", "壁", "葉", "実", "太陽の光", "赤い花", "葉", "また一つ花", "鮮やかな花", "古い樹皮", "風", "幹に水", "根のような枝", "サバンナ", "葉", "葉っぱ", "種", "穂", "綿毛", "満月", "ツル", "花", "種", "蕾", "星形の花", "紫色の花弁", "蕾", "薄紅色の花", "春風", "蕾", "香り", "実", "鈴のような花", "実", "葉", "朱色の花", "実", "熟れた実", "泥中に茎", "水面に葉", "ハス", "光", "茎", "再び芽", "葉", "茎", "ゆっくりと葉", "白い十字の花", "独特の香り", "ハート形の葉", "葉", "獲物", "素早く葉", "甘い蜜", "蜜", "蜜", "鋭いトゲ", "空高く花茎", "最期の花", "重力", "地面", "芽", "光合成", "風", "?枚の花びら", "新たな茎", "白い花", "?つ葉"
 ];
 
 const logsActions = [
-"した", "見つけた", "迎えた", "素早く泳いだ", "手で転がした", "迎えた", "踏み出した", "伸ばした", "迎えた", "高く上げた", "パタつかせた", "生え変わらせた", "開けた", "出した", "伸ばし続けている", "研いだ", "あげた", "見つけた", "あげている", "揺らした", "見つけた", "ピクつかせた", "立てた", "跳ねた", "噛もうとしている", "支えた", "跳ねた", "伸ばした", "している", "出した", "見せびらかしている", "よじ登った", "伸ばした", "引っ込めた", "歩いた", "産んだ", "付いていっている", "泳いだ", "親と思った", "ピンと立てた", "揺らした", "つついた", "見つめた", "睨んだ", "歩いた", "掘り返した", "見せた", "つけて突進した", "掲げた", "出した", "見せた", "膨らませている", "素早く登った", "見つけた", "見つけた", "した", "潜った", "探している", "出した", "見せた", "泳いでいる", "揺らした", "をした", "出した", "見せた", "した", "をした", "見上げている", "仲間だと思った", "素早く登った", "走っている", "使って立った", "食べた", "あげている", "突き出した", "揺らした", "見回した", "走っている", "広げた", "滑空した", "見つめている", "こすっている", "器用に渡った", "素早く駆けた", "滑空した", "広げた", "ハグした", "食んだ", "行った", "突き出した", "掘った", "平らげた", "振った", "つついた", "告げた", "羽ばたかせた", "割った", "巻いた", "繕った", "食んだ", "細めた", "楽しんでいる", "頬張った", "登った", "転がした", "突き出した", "浴びた", "揺らした", "伸ばした", "壊しそうとしている", "立てた", "歩いた", "響かせた", "食べた", "楽しんでいる", "発した", "迎えた", "激しくつついた", "垂直に登った", "迎えた", "響かせた", "立てた", "振りながら歩いている", "登った", "膨らませた", "跳ねた", "素早く動かしている", "きらめかせた", "成した", "揺らした", "潜った", "開けた", "動かした", "つついた", "泳いだ", "力強く遡っている", "産んだ", "免れた", "パクパクさせた", "跳ねた", "じっとさせている", "大きく羽ばたかせた", "隠した", "をした", "あげた", "見つけた", "吐いた", "高く吹いた", "上げた", "豪快に跳ねた", "水面に出した", "追い詰めた", "剥いた", "勢いよく飛び出した", "広げた", "滑空した", "パタパタさせた", "漂っている", "開けた", "なして泳いだ", "きらめかせた", "をしている", "閉じた", "出した", "深く潜った", "固く閉じた", "わずかに出した", "潜った", "ゆっくり這った", "縮ませた", "飲み込んだ", "動かした", "見つけた", "伸ばした", "吸った", "広げた", "舞った", "飛んだ", "捕らえようとしている", "叩いた", "なした", "蹴って飛んだ", "みつけた", "蹴った", "広げた", "見つけた", "登った", "広げた", "発見した", "集めた", "運んだ", "踊った", "広げた", "響かせた", "刺した", "告げた", "刻んだ", "畳んだ", "震わせた", "動かした", "見つけた", "突き出した", "広げた", "見つけた", "放った", "舞った", "飲んだ", "擦り合わせた", "奏でた", "揺らした", "広げた", "舞った", "かすめた", "通り過ぎた", "見つけた", "刺した", "伸ばした", "揺らした", "かじった", "回した", "構えた", "捕らえた", "丸めた", "見つけて安心した", "食べた", "吐いた", "張った", "捕らえた", "カチカチした", "振り上げた", "歩いている", "擦り合わせた", "舞っている", "舐めている", "揺らした", "実らせた", "浴びた", "咲かせた", "光らせた", "落とした", "咲かせた", "落とした", "感じた", "蓄えている", "広げた", "見つめている", "赤く染めた", "広げた", "飛ばした", "なびかせている", "飛ばした", "見ている", "伸ばした", "開いた", "付けた", "膨らませた", "開いた", "広げた", "垂れた", "咲かせた", "感じた", "ほころばせた", "漂わせている", "膨らませた", "咲かせた", "青く染めた", "赤くした", "咲かせた", "弾けさせた", "落とした", "伸ばした", "広げた", "咲かせた", "浴びている", "まっすぐ伸ばしている", "伸ばした", "畳んだ", "垂れた", "開いた", "咲かせた", "漂わせている", "広げた", "広げて待ち構えている", "感じた", "閉じた", "蓄えた", "小学生に吸われた", "蝶々に吸われた", "構えた", "伸ばした", "咲かせた", "感じた", "転がっている", "吹いた", "をしている", "感じている", "開いた", "地面に這わせた", "咲かせた", "広げた"
+"した", "見つけた", "迎えた", "素早く泳いだ", "手で転がした", "迎えた", "踏み出した", "伸ばした", "迎えた", "高く上げた", "パタつかせた", "生え変わらせた", "開けた", "出した", "伸ばし続けている", "研いだ", "あげた", "見つけた", "あげている", "揺らした", "見つけた", "ピクつかせた", "立てた", "跳ねた", "噛もうとしている", "支えた", "跳ねた", "伸ばした", "している", "出した", "見せびらかしている", "よじ登った", "伸ばした", "引っ込めた", "歩いた", "産んだ", "付いていっている", "泳いだ", "親と思った", "ピンと立てた", "揺らした", "つついた", "見つめた", "睨んだ", "歩いた", "掘り返した", "見せた", "つけて突進した", "掲げた", "出した", "見せた", "膨らませている", "素早く登った", "見つけた", "見つけた", "した", "潜った", "探している", "出した", "見せた", "泳いでいる", "揺らした", "した", "出した", "見せた", "した", "した", "見上げている", "仲間だと思った", "素早く登った", "走っている", "使って立った", "食べた", "あげている", "突き出した", "揺らした", "見回した", "走っている", "広げた", "滑空した", "見つめている", "こすっている", "器用に渡った", "素早く駆けた", "滑空した", "広げた", "ハグした", "食んだ", "行った", "突き出した", "掘った", "平らげた", "振った", "つついた", "告げた", "羽ばたかせた", "割った", "巻いた", "繕った", "食んだ", "細めた", "楽しんでいる", "頬張った", "登った", "転がした", "突き出した", "浴びた", "揺らした", "伸ばした", "壊しそうとしている", "立てた", "歩いた", "響かせた", "食べた", "楽しんでいる", "発した", "迎えた", "激しくつついた", "垂直に登った", "迎えた", "響かせた", "立てた", "振りながら歩いている", "登った", "膨らませた", "跳ねた", "素早く動かしている", "きらめかせた", "成した", "揺らした", "潜った", "開けた", "動かした", "つついた", "泳いだ", "力強く遡っている", "産んだ", "免れた", "パクパクさせた", "跳ねた", "じっとさせている", "大きく羽ばたかせた", "隠した", "をした", "あげた", "見つけた", "吐いた", "高く吹いた", "上げた", "豪快に跳ねた", "水面に出した", "追い詰めた", "剥いた", "勢いよく飛び出した", "広げた", "滑空した", "パタパタさせた", "漂っている", "開けた", "なして泳いだ", "きらめかせた", "している", "閉じた", "出した", "深く潜った", "固く閉じた", "わずかに出した", "潜った", "ゆっくり這った", "縮ませた", "飲み込んだ", "動かした", "見つけた", "伸ばした", "吸った", "広げた", "舞った", "飛んだ", "捕らえようとしている", "叩いた", "なした", "蹴って飛んだ", "みつけた", "蹴った", "広げた", "見つけた", "登った", "広げた", "発見した", "集めた", "運んだ", "踊った", "広げた", "響かせた", "刺した", "告げた", "刻んだ", "畳んだ", "震わせた", "動かした", "見つけた", "突き出した", "広げた", "見つけた", "放った", "舞った", "飲んだ", "擦り合わせた", "奏でた", "揺らした", "広げた", "舞った", "かすめた", "通り過ぎた", "見つけた", "刺した", "伸ばした", "揺らした", "かじった", "回した", "構えた", "捕らえた", "丸めた", "見つけて安心した", "食べた", "吐いた", "張った", "捕らえた", "カチカチした", "振り上げた", "歩いている", "擦り合わせた", "舞っている", "舐めている", "揺らした", "実らせた", "浴びた", "咲かせた", "光らせた", "落とした", "咲かせた", "落とした", "感じた", "蓄えている", "広げた", "見つめている", "赤く染めた", "広げた", "飛ばした", "なびかせている", "飛ばした", "見ている", "伸ばした", "開いた", "付けた", "膨らませた", "開いた", "広げた", "垂れた", "咲かせた", "感じた", "ほころばせた", "漂わせている", "膨らませた", "咲かせた", "青く染めた", "赤くした", "咲かせた", "弾けさせた", "落とした", "伸ばした", "広げた", "咲かせた", "浴びている", "まっすぐ伸ばしている", "伸ばした", "畳んだ", "垂れた", "開いた", "咲かせた", "漂わせている", "広げた", "広げて待ち構えている", "感じた", "閉じた", "蓄えた", "小学生に吸われた", "蝶々に吸われた", "構えた", "伸ばした", "咲かせた", "感じた", "転がっている", "吹いた", "している", "感じている", "開いた", "地面に這わせた", "咲かせた", "広げた"
 ];
-
-const logsNeutral = ["システム待機中...", "静寂が続いている", "データバスに異常なし"];
-const logsAwaken  = ["観測者の瞳孔反応を検知", "現実との同期率が低下中", "メタデータ解析開始"];
-
-// ■ カテゴリ別 通常行動定義
 const actionData = {
-    LAND: {
-        sleepStart: "は眠りについた",
-        sleeping: "は寝ている・・・",
-        wakeUp: "は目を覚ました",
-        eatStart: "は何かを食べ始めた",
-        eating: ["は夢中になって食べている", "は顔を舐めまわしている", "はもぐもぐしている"],
-        eatEnd: "はお腹いっぱいになった",
-        normal: ["は周りを見渡した", "はとことこ歩いている", "はのんびりしている", "はあくびをした"]
-    },
-    WATER: {
-        sleepStart: "は水底で静止した",
-        sleeping: "は流れに身を任せている・・・",
-        wakeUp: "は再び泳ぎ出した",
-        eatStart: "は餌をついばみ始めた",
-        eating: ["は砂ごと餌を吸い込んでいる", "は水草を食んでいる", "は何かを飲み込んでいる"],
-        eatEnd: "は満足して泳ぎ去った",
-        normal: ["はゆったりと泳いでいる", "は水面に波紋を作った", "は泡を吐いた", "は急旋回した"]
-    },
-    INSECT: {
-        sleepStart: "は葉の裏で動きを止めた",
-        sleeping: "はじっとしている・・・",
-        wakeUp: "は触角を動かし始めた",
-        eatStart: "は食事を開始した",
-        eating: ["は口器を動かしている", "は無心に齧っている", "は樹液を吸っている"],
-        eatEnd: "は食事を終えた",
-        normal: ["は翅を震わせた", "は忙しなく動き回っている", "は触角の手入れをしている", "は何かを警戒している"]
-    },
-    PLANT: {
-        sleepStart: "は花弁を閉じた",
-        sleeping: "は休眠している・・・",
-        wakeUp: "は朝日を浴びて開いた",
-        eatStart: "は根から養分を吸い上げ始めた",
-        eating: ["は光合成をしている", "は水を蓄えている", "は太陽の方へ葉を向けた"],
-        eatEnd: "は十分に生長した",
-        normal: ["は風に揺れている", "は静かに佇んでいる", "は種を飛ばす準備をしている", "は雨粒を弾いた"]
-    }
+    LAND: { sleepStart: "は眠りについた", sleeping: "は寝ている", wakeUp: "は目を覚ました", eatStart: "は食べ始めた", eating: ["は夢中で食べている","はモグモグしている"], eatEnd: "は満腹になった", normal: ["は歩いている","はあくびした","は辺りを見た"] },
+    WATER: { sleepStart: "は水底で静止した", sleeping: "は流されている", wakeUp: "は泳ぎ出した", eatStart: "は餌をついばんだ", eating: ["は吸い込んでいる","は食んでいる"], eatEnd: "は泳ぎ去った", normal: ["は泳いでいる","は泡を吐いた","は旋回した"] },
+    INSECT: { sleepStart: "は止まった", sleeping: "はじっとしている", wakeUp: "は触角を動かした", eatStart: "は食事を始めた", eating: ["は齧っている","は吸っている"], eatEnd: "は食事を終えた", normal: ["は翅を震わせた","は動き回っている","は警戒している"] },
+    PLANT: { sleepStart: "は閉じた", sleeping: "は休眠している", wakeUp: "は開いた", eatStart: "は養分を吸った", eating: ["は光合成している","は水を蓄えている"], eatEnd: "は生長した", normal: ["は揺れている","は佇んでいる","は弾いた"] }
 };
 
 // ================================================================
-// 変数・ステート管理
+// パッシブ・アイテムシステム定義
 // ================================================================
+
+const passiveDatabase = [
+    { id: "targeting", name: "Targeting", icon:"🎯", desc: ["対象生物出現率 3倍", "対象生物出現率 10倍", "対象生物のみ出現"] },
+    { id: "overclock", name: "Overclock", icon:"⚡", desc: ["ログ生成速度 x1.5", "ログ生成速度 x3.0", "ログ生成速度 x10.0"] },
+    { id: "rng_hack", name: "RNG Hack", icon:"🎲", desc: ["精算成功率 x1.2", "精算成功率 x2.0", "くじ100% & 判定50倍緩和"] },
+    { id: "multithread", name: "Multithread", icon:"💻", desc: ["ウィンドウ数 +2", "ウィンドウ数 +5", "ウィンドウ数 +10"] },
+    { id: "stabilizer", name: "Stabilizer", icon:"⚓", desc: ["深度10到達で帰還支援(小)", "深度10到達で帰還支援(大)", "深度10到達で帰還確定"] }
+];
+
+let activePassives = { 
+    targeting: { level: 0, durability: 0 },
+    overclock: { level: 0, durability: 0 },
+    rng_hack: { level: 0, durability: 0 },
+    multithread: { level: 0, durability: 0 },
+    stabilizer: { level: 0, durability: 0 }
+};
+
+let inventory = { shifter: 0 };
+let totalLogsAllTime = 0; 
+if (localStorage.getItem("squirrel_total_logs")) {
+    totalLogsAllTime = parseInt(localStorage.getItem("squirrel_total_logs"), 10);
+}
 
 let dreamCounter = 0;
-let isCrashed = false;
-let log_corrector = []; 
-let activeWindows = {}; 
+let isSettling = false;
+let isPaused = false;
+let isStabilized = false; // Stabilizer発動フラグ
+let activeWindows = {};
+let log_corrector = [];
+let mainLoopTimer = null; // タイマーID管理用
 
 // ================================================================
-// 関数定義
+// UI制御
 // ================================================================
 
-// カテゴリ判定用ヘルパー関数
+const container = document.getElementById("container");
+const outerLayers = document.getElementById("outer-layers-container");
+const mainLogWin = document.getElementById("main-log-window");
+const dreamArea = document.getElementById("dream-container");
+
+// HUD Elements
+const hudDepth = document.getElementById("hud-depth-value");
+const hudStatus = document.getElementById("hud-status-text");
+const hudTotalLogs = document.getElementById("hud-total-logs");
+const hudShifter = document.getElementById("hud-shifter-count");
+const hudPassiveList = document.getElementById("hud-passive-list");
+const stabilizerIndicator = document.getElementById("stabilizer-indicator");
+
+const passiveModal = document.getElementById("passive-modal");
+const passiveChoices = document.getElementById("passive-choices");
+const modalPassiveList = document.getElementById("modal-passive-list-container");
+
+// 初期描画
+hudTotalLogs.textContent = totalLogsAllTime;
+
 function getCreatureType(index) {
-    if (index <= 41) return "LAND";
-    if (index <= 57) return "WATER";
-    if (index <= 77) return "INSECT";
-    return "PLANT";
+    if (index <= 41) return "LAND"; if (index <= 57) return "WATER"; if (index <= 77) return "INSECT"; return "PLANT";
 }
 
-function addMainLog(text, type = "") {
-    const win = document.getElementById("main-log-window");
-    const line = document.createElement("div");
+function addLog(text, type="") {
+    const div = document.createElement("div");
+    div.className = `log-line ${type}`;
     const time = new Date().toTimeString().slice(0, 8);
-    line.className = `log-line ${type}`;
-    line.innerHTML = `<span style="opacity:0.5">[${time}]</span> ${text}`;
-    win.appendChild(line);
-    win.scrollTop = win.scrollHeight;
+    div.innerHTML = `<span style="opacity:0.5">[${time}]</span> ${text}`;
+    mainLogWin.appendChild(div);
+    mainLogWin.scrollTop = mainLogWin.scrollHeight;
 }
 
-function updateDreamCounter() {
-    if(isCrashed) return;
+// パッシブ表示更新
+function updatePassiveDisplay() {
+    hudPassiveList.innerHTML = "";
+    modalPassiveList.innerHTML = "";
+    let hasPassive = false;
 
-    const delta = Math.floor(Math.random() * 3) - 1;
-    const oldCounter = dreamCounter;
-    dreamCounter += delta;
+    for (let key in activePassives) {
+        if (activePassives[key].level > 0) {
+            hasPassive = true;
+            const pData = passiveDatabase.find(p => p.id === key);
+            
+            // HUD用バッジ
+            const hudBadge = document.createElement("div");
+            hudBadge.className = "hud-passive-badge";
+            
+            let dots = "";
+            for(let i=0; i<activePassives[key].durability; i++) dots += `<span class="dot"></span>`;
+            
+            hudBadge.innerHTML = `<span>${pData.name} Lv${activePassives[key].level}</span><div class="durability-dots">${dots}</div>`;
+            hudPassiveList.appendChild(hudBadge);
 
-    document.getElementById("counter-display").textContent = `Dream Depth: ${dreamCounter}`;
-    const statusText = document.getElementById("status-text");
+            // モーダル用バッジ
+            const modalBadge = document.createElement("span");
+            modalBadge.className = "modal-badge";
+            modalBadge.textContent = `${pData.name} Lv${activePassives[key].level}`;
+            modalPassiveList.appendChild(modalBadge);
+        }
+    }
+    
+    if(!hasPassive) {
+        hudPassiveList.innerHTML = `<div style="font-size:10px; color:#999;">NONE</div>`;
+        modalPassiveList.innerHTML = `<div style="font-size:10px; color:#999;">NONE</div>`;
+    }
+}
+
+// ズームアウト演出
+function updateZoomOutEffect(depth) {
+    const scale = Math.max(0.4, 1 - (depth * 0.1)); 
+    container.style.transform = `scale(${scale})`;
+    outerLayers.innerHTML = "";
+    for (let i = depth; i >= 1; i--) {
+        const frame = document.createElement("div");
+        frame.className = "outer-frame";
+        const layerScale = 1 - ((i - 1) * 0.1);
+        frame.style.transform = `scale(${layerScale})`;
+        frame.style.borderColor = `rgba(0,0,0, ${1 - (i*0.1)})`;
+        frame.style.zIndex = -i; 
+        frame.innerHTML = `<div style="padding:10px; color:#000; font-size:10px; font-weight:bold;">>> RECURSION DEPTH -${i} <<</div>`;
+        outerLayers.appendChild(frame);
+    }
+}
+
+// 画面状態更新（即時反映用）
+function updateVisualState() {
+    hudDepth.textContent = dreamCounter;
+    hudDepth.className = "hud-value depth";
+    if(dreamCounter > 0) hudDepth.classList.add("dream");
+    if(dreamCounter < 0) hudDepth.classList.add("wake");
+
+    // Stabilized Indicator
+    if(isStabilized) {
+        stabilizerIndicator.style.display = "block";
+    } else {
+        stabilizerIndicator.style.display = "none";
+    }
 
     if (dreamCounter > 0) {
-        statusText.textContent = "Status: Dreaming";
-        statusText.style.color = "#ff7096";
+        hudStatus.textContent = "DREAMING";
+        hudStatus.style.color = "#e91e63";
+        container.style.transform = "scale(1)";
+        outerLayers.innerHTML = "";
     } else if (dreamCounter < 0) {
-        statusText.textContent = "Status: Awakening";
-        statusText.style.color = "#6ab0ff";
+        hudStatus.textContent = "AWAKENING";
+        hudStatus.style.color = "#0056b3";
+        updateZoomOutEffect(Math.abs(dreamCounter));
     } else {
-        statusText.textContent = "Status: Neutral";
-        statusText.style.color = "#fff";
-    }
-
-    if (dreamCounter >= 10 || dreamCounter <= -10) {
-        isCrashed = true;
-        addMainLog("FATAL ERROR: Counter Limit Exceeded.", "error");
-        statusText.textContent = "SYSTEM HALTED";
-        return;
-    }
-
-    if (dreamCounter > 0 && dreamCounter > oldCounter) {
-        for (let i = Math.max(1, oldCounter + 1); i <= dreamCounter; i++) {
-            openDreamWindow(i);
-        }
-    }
-    if (oldCounter > 0 && dreamCounter < oldCounter) {
-        for (let i = oldCounter; i > Math.max(0, dreamCounter); i--) {
-            closeDreamWindow(i);
-        }
-    }
-    
-    if (dreamCounter <= 0) {
-        generateMainLog();
+        hudStatus.textContent = "NEUTRAL";
+        hudStatus.style.color = "#555";
+        container.style.transform = "scale(1)";
+        outerLayers.innerHTML = "";
     }
 }
 
+// パッシブ選択画面
+function showPassiveSelection(level) {
+    isPaused = true;
+    updatePassiveDisplay();
+    passiveChoices.innerHTML = "";
+    
+    const shuffled = [...passiveDatabase].sort(() => 0.5 - Math.random());
+    const choices = shuffled.slice(0, 3);
+    
+    let allOwned = true;
+    choices.forEach(p => { if (activePassives[p.id].level < level) allOwned = false; });
+
+    choices.forEach(p => {
+        const isOwned = activePassives[p.id].level >= level;
+        const div = document.createElement("div");
+        div.className = `passive-card ${isOwned ? 'owned' : ''}`;
+        div.innerHTML = `<div class="p-icon">${p.icon}</div><div class="p-name">${p.name}</div><div class="p-desc">${p.desc[level-1]}</div><div class="p-level">LEVEL ${level}</div>`;
+        if (!isOwned) {
+            div.onclick = () => {
+                activePassives[p.id].level = level; activePassives[p.id].durability = 3;
+                addLog(`Patch Applied: ${p.name} Lv${level}`, "system");
+                updatePassiveDisplay(); passiveModal.style.display = "none"; isPaused = false;
+            };
+            passiveChoices.appendChild(div);
+        }
+    });
+
+    if (passiveChoices.childElementCount === 0 || allOwned) {
+        passiveChoices.innerHTML = "";
+        const div = document.createElement("div");
+        div.className = "passive-card";
+        div.style.borderColor = "#6ab0ff";
+        div.innerHTML = `<div class="p-icon">🧬</div><div class="p-name">Dream Shifter</div><div class="p-desc">Modify Dream Counter (+1/-1)<br>Consumable Item</div><div class="p-level" style="background:#6ab0ff;">ITEM</div>`;
+        div.onclick = () => {
+            inventory.shifter++; hudShifter.textContent = "x" + inventory.shifter;
+            addLog(`Item Acquired: Dream Shifter`, "system");
+            passiveModal.style.display = "none"; isPaused = false;
+        };
+        passiveChoices.appendChild(div);
+    }
+    passiveModal.style.display = "flex";
+}
+
+// ウィンドウ管理（即時実行用）
+function manageDreamWindows() {
+    if(dreamCounter <= 0) {
+        Object.keys(activeWindows).forEach(k => closeDreamWindow(k));
+        return;
+    }
+    
+    let extraWindows = 0;
+    if (activePassives.multithread.level === 1) extraWindows = 2;
+    if (activePassives.multithread.level === 2) extraWindows = 5;
+    if (activePassives.multithread.level === 3) extraWindows = 10;
+    const targetCount = dreamCounter + extraWindows;
+    const currentCount = Object.keys(activeWindows).length;
+    
+    if (currentCount < targetCount) {
+        for (let i = currentCount + 1; i <= targetCount; i++) openDreamWindow(i);
+    } else if (currentCount > targetCount) {
+         const keys = Object.keys(activeWindows).map(Number).sort((a,b)=>b-a);
+         for(let i=0; i < currentCount - targetCount; i++) closeDreamWindow(keys[i]);
+    }
+}
+
+// 0クロス処理（即時実行用）
+function handleZeroCrossing(oldCounter) {
+    if (oldCounter > 0) {
+        addLog("現実へ帰還。ログ精算...", "system");
+        // ウィンドウを強制クローズしてログ回収
+        Object.keys(activeWindows).forEach(k => closeDreamWindow(k));
+        // 即時精算実行
+        checkAchievements();
+    } else {
+        addLog("覚醒深度リセット。", "awaken");
+    }
+}
+
+// アイテム使用
+function openItemModal() {
+    if (inventory.shifter > 0 && !isPaused && !isSettling) {
+        isPaused = true;
+        document.getElementById("item-modal").style.display = "flex";
+    }
+}
+function closeItemModal() {
+    document.getElementById("item-modal").style.display = "none";
+    isPaused = false;
+}
+function useShifter(amount) {
+    if (inventory.shifter > 0) {
+        inventory.shifter--;
+        hudShifter.textContent = "x" + inventory.shifter;
+        
+        const oldCounter = dreamCounter;
+        dreamCounter += amount;
+        addLog(`Dream Shifter used: Counter ${amount > 0 ? '+1' : '-1'}`, "system");
+        
+        closeItemModal();
+        
+        // ★重要: メインタイマーをリセットし、即時実行による競合を防ぐ
+        clearInterval(mainLoopTimer);
+        mainLoopTimer = setInterval(updateCounter, 2500);
+
+        // ★重要: 視覚状態を即時更新
+        updateVisualState();
+        
+        // Stabilizerモード判定 (アイテムで10に行っても発動させる)
+        if (activePassives.stabilizer.level > 0 && dreamCounter >= 10 && !isStabilized) {
+            isStabilized = true;
+            addLog("STABILIZER: Return Mode Activated.", "system");
+            updateVisualState();
+        }
+
+        // ★重要: ロジックの即時実行
+        if (oldCounter !== 0 && dreamCounter === 0) {
+            handleZeroCrossing(oldCounter);
+        } else {
+            manageDreamWindows();
+        }
+    }
+}
+
+// カウンター更新ループ（メイン）
+function updateCounter() {
+    if (isSettling || isPaused) return;
+
+    const oldCounter = dreamCounter;
+    let delta = 0;
+
+    // Stabilizerロジック
+    if (activePassives.stabilizer.level > 0 && dreamCounter >= 10) {
+        if (!isStabilized) {
+            isStabilized = true;
+            addLog("STABILIZER: Return Mode Activated.", "system");
+        }
+    }
+
+    // 確率計算
+    if (isStabilized) {
+        const lv = activePassives.stabilizer.level;
+        const r = Math.random();
+        if (lv === 1) {
+            if (r < 0.2) delta = 1; else if (r < 0.5) delta = 0; else delta = -1;
+        } else if (lv === 2) {
+            if (r < 0.1) delta = 1; else if (r < 0.4) delta = 0; else delta = -1;
+        } else {
+            if (r < 0.2) delta = 0; else delta = -1;
+        }
+    } else {
+        delta = Math.floor(Math.random() * 3) - 1; 
+    }
+
+    dreamCounter += delta;
+
+    // パッシブ獲得
+    if (dreamCounter === -3 && oldCounter !== -3) showPassiveSelection(1);
+    else if (dreamCounter === -8 && oldCounter !== -8) showPassiveSelection(2);
+    else if (dreamCounter === -13 && oldCounter !== -13) showPassiveSelection(3);
+
+    // クラッシュ
+    if (dreamCounter >= 15 || dreamCounter <= -15) {
+        dreamCounter = 0;
+        isStabilized = false;
+        for(let k in activePassives) { activePassives[k].level=0; activePassives[k].durability=0; }
+        updatePassiveDisplay();
+        addLog("SYSTEM CRASH: Resetting...", "chaos");
+        playFinishSound();
+    }
+
+    // 更新処理を共通化
+    updateVisualState();
+
+    if (oldCounter !== 0 && dreamCounter === 0) {
+        handleZeroCrossing(oldCounter);
+    } else {
+        manageDreamWindows();
+    }
+    
+    if (Math.random() > 0.6 && !isPaused && dreamCounter !== 0) {
+        if (dreamCounter < 0) addLog(`System: ${logsSystem[Math.floor(Math.random()*logsSystem.length)]}`, "awaken");
+    }
+}
+
+// 夢ウィンドウ
 function openDreamWindow(depth) {
-    if (activeWindows[depth]) return; 
+    if (activeWindows[depth]) return;
+    let cName, idx;
+    const lvl = activePassives.targeting.level;
+    if (lvl > 0) {
+        let chance = (lvl === 1) ? 0.5 : (lvl === 2) ? 0.8 : 1.0;
+        if (Math.random() < chance) {
+            cName = targetCreatures[Math.floor(Math.random() * targetCreatures.length)];
+            idx = logsCreature.indexOf(cName);
+        } else {
+            idx = Math.floor(Math.random()*logsCreature.length);
+            cName = logsCreature[idx];
+        }
+    } else {
+        idx = Math.floor(Math.random()*logsCreature.length);
+        cName = logsCreature[idx];
+    }
+    const type = getCreatureType(idx);
 
-    const creatureIdx = Math.floor(Math.random() * logsCreature.length);
-    const creatureName = logsCreature[creatureIdx];
-    const type = getCreatureType(creatureIdx);
-
-    const container = document.getElementById("dream-container");
     const div = document.createElement("div");
     div.className = "sub-window dream-active";
-    div.id = `window-${depth}`;
+    div.id = `win-${depth}`;
+    div.innerHTML = `<div class="sub-header"><span>#${depth}: ${cName}</span><span id="cnt-${depth}">0</span></div><div class="sub-log-area" id="log-area-${depth}"></div>`;
+    dreamArea.appendChild(div);
     
-    div.innerHTML = `
-        <div class="sub-header">
-            <span>Layer #${depth}: ${creatureName}</span>
-            <span id="count-${depth}">0 logs</span>
-        </div>
-        <div class="sub-log-area" id="log-area-${depth}"></div>
-    `;
-    container.appendChild(div);
-
-    activeWindows[depth] = {
-        depth: depth,
-        creatureIdx: creatureIdx,
-        creature: creatureName,
-        type: type, // カテゴリ保存
-        count: 0,
-        element: div,
-        timerId: null,
-        
-        // ■ ステート管理用
-        state: "NORMAL", // NORMAL, SLEEP, EAT
-        stateTimer: 0    // 残りターン数
-    };
-
-    addMainLog(`Process #${depth} (${type}) initialized. Subject: ${creatureName}`, "system");
-
-    const speed = 2000 + Math.random() * 3000;
+    activeWindows[depth] = { el: div, creature: cName, type: type, idx: idx, count: 0, timer: null, state: "NORMAL", stateTimer: 0 };
     
-    activeWindows[depth].timerId = setInterval(() => {
-        generateSubLog(depth);
-    }, speed);
+    let speed = 2000 + Math.random()*2000;
+    const oLvl = activePassives.overclock.level;
+    if (oLvl === 1) speed /= 1.5; if (oLvl === 2) speed /= 3.0; if (oLvl === 3) speed /= 10.0;
+    activeWindows[depth].timer = setInterval(()=>{ generateSubLog(depth); }, speed);
 }
 
 function closeDreamWindow(depth) {
-    const winData = activeWindows[depth];
-    if (!winData) return;
-
-    clearInterval(winData.timerId);
-
-    log_corrector[depth] = {
-        creature: winData.creature,
-        count: winData.count
-    };
-
-    addMainLog(`Process #${depth} terminated. Saved: [${winData.creature}, ${winData.count} logs]`, "system");
-
-    winData.element.style.transform = "scale(0)";
-    winData.element.style.opacity = "0";
-    setTimeout(() => {
-        if(winData.element.parentNode) {
-            winData.element.parentNode.removeChild(winData.element);
-        }
-    }, 400);
-
+    const w = activeWindows[depth]; if (!w) return;
+    clearInterval(w.timer);
+    log_corrector.push({ creature: w.creature, count: w.count, type: w.type });
+    w.el.style.transform = "scale(0)";
+    setTimeout(() => { if(w.el.parentNode) w.el.parentNode.removeChild(w.el); }, 300);
     delete activeWindows[depth];
 }
 
-// === ログ生成ロジック（ステートマシン実装） ===
 function generateSubLog(depth) {
-    const winData = activeWindows[depth];
-    if (!winData) return;
-
-    const data = actionData[winData.type];
-    let text = "";
-    let cssClass = "log-line";
-
-    // 1. 特殊状態（睡眠・食事）の継続処理
-    if (winData.state === "SLEEP") {
-        winData.stateTimer--;
-        if (winData.stateTimer <= 0) {
-            // 起床
-            winData.state = "NORMAL";
-            text = winData.creature + data.wakeUp;
-        } else {
-            // 睡眠中
-            text = winData.creature + data.sleeping;
-            cssClass += " sleep";
-        }
-    } 
-    else if (winData.state === "EAT") {
-        winData.stateTimer--;
-        if (winData.stateTimer <= 0) {
-            // 食事終了
-            winData.state = "NORMAL";
-            text = winData.creature + data.eatEnd;
-        } else {
-            // 食事中
-            text = winData.creature + data.eating[Math.floor(Math.random() * data.eating.length)];
-            cssClass += " eat";
-        }
-    }
-    else {
-        // 2. 新規行動決定
-        // 夢深度による狂気判定
-        const chaosRate = depth * 0.1;
-
-        if (Math.random() > chaosRate) {
-            // ---- 正常モード ----
-            const rand = Math.random();
-
-            if (rand < 0.05) { 
-                // 5% 睡眠開始 (5~10ターン)
-                winData.state = "SLEEP";
-                winData.stateTimer = Math.floor(Math.random() * 6) + 5; 
-                text = winData.creature + data.sleepStart;
-            } 
-            else if (rand < 0.15) { 
-                // 10% 食事開始 (3~5ターン)
-                winData.state = "EAT";
-                winData.stateTimer = Math.floor(Math.random() * 3) + 3;
-                text = winData.creature + data.eatStart;
-            } 
-            else if (rand < 0.50) {
-                // 35% 単発通常行動
-                text = winData.creature + data.normal[Math.floor(Math.random() * data.normal.length)];
-            } 
-            else {
-                // 50% 特有ログ（テンプレート・整合性あり）
-                const baseIdx = winData.creatureIdx * 3;
-                r_num = Math.floor(Math.random() * 3)
-                if (baseIdx + 2 < logsObjects.length) {
-                    const offsetO = r_num;
-                    const offsetA = r_num;
-                    text = `${winData.creature}が${logsObjects[baseIdx + offsetO]}を${logsActions[baseIdx + offsetA]}`;
-                } else {
-                    text = `${winData.creature}が何かを見つめている`;
-                }
-            }
-        } else {
-            // ---- 混沌モード（支離滅裂） ----
-            const obj = logsObjects[Math.floor(Math.random() * logsObjects.length)];
-            const act = logsActions[Math.floor(Math.random() * logsActions.length)];
-            text = `${winData.creature}が${obj}を${act}`;
-            cssClass += " chaos";
-        }
-    }
-
-    // HTML出力
-    const area = document.getElementById(`log-area-${depth}`);
-    const line = document.createElement("div");
-    line.textContent = `> ${text}`;
-    line.className = cssClass;
-    area.appendChild(line);
-    area.scrollTop = area.scrollHeight;
-
-    winData.count++;
-    document.getElementById(`count-${depth}`).textContent = `${winData.count} logs`;
-}
-
-function generateMainLog() {
-    let text = "";
-    let type = "";
-
-    if (dreamCounter <= -1) {
-        text = logsAwaken[Math.floor(Math.random() * logsAwaken.length)];
-        type = "awaken";
+    const w = activeWindows[depth]; if (!w) return;
+    const data = actionData[w.type];
+    let text = ""; let css = "log-line";
+    if (w.state === "SLEEP") {
+        w.stateTimer--; if (w.stateTimer <= 0) { w.state = "NORMAL"; text = w.creature + data.wakeUp; } else { text = w.creature + data.sleeping; css += " sleep"; }
+    } else if (w.state === "EAT") {
+        w.stateTimer--; if (w.stateTimer <= 0) { w.state = "NORMAL"; text = w.creature + data.eatEnd; } else { text = w.creature + data.eating[Math.floor(Math.random()*data.eating.length)]; css += " eat"; }
     } else {
-        text = logsNeutral[Math.floor(Math.random() * logsNeutral.length)];
-        type = "";
+        if (Math.random() < 0.1) {
+             const r = Math.random();
+             if(r<0.1) { w.state="SLEEP"; w.stateTimer=5; text=w.creature+data.sleepStart; }
+             else if(r<0.3) { w.state="EAT"; w.stateTimer=3; text=w.creature+data.eatStart; }
+             else text = w.creature + data.normal[Math.floor(Math.random()*data.normal.length)];
+        } else {
+            ram = Math.floor(Math.random() * 3)
+            const baseIdx = w.idx * 3;
+            const o = ram
+            const a = ram
+            text = `${w.creature}は${logsObjects[baseIdx + o]}を${logsActions[baseIdx + a]}`;
+        }
     }
-    
-    if(Math.random() > 0.5) {
-        addMainLog(text, type);
-    }
+    const area = document.getElementById(`log-area-${depth}`);
+    const div = document.createElement("div"); div.className=css; div.textContent=`> ${text}`;
+    area.appendChild(div); area.scrollTop = area.scrollHeight;
+    w.count++; document.getElementById(`cnt-${depth}`).textContent = w.count;
 }
 
-// ================================================================
-// 実行開始
-// ================================================================
+// 実績精算
+function checkAchievements() {
+    if (log_corrector.length === 0) {
+        isStabilized = false;
+        return;
+    }
+    isSettling = true;
+    isStabilized = false; // 解除
+    
+    let lotteryProb = 0.2; let conditionMult = 1;
+    const rngLvl = activePassives.rng_hack.level;
+    if (rngLvl === 1) lotteryProb *= 1.2; if (rngLvl === 2) lotteryProb *= 2.0; if (rngLvl === 3) { lotteryProb = 1.0; conditionMult = 50; }
 
-addMainLog("システム起動... 生態系シミュレータ接続", "system");
+    const box = document.getElementById("settlement-box");
+    const countEl = document.getElementById("settlement-count");
+    const total = log_corrector.reduce((a,b)=>a+b.count,0);
+    
+    totalLogsAllTime += total;
+    localStorage.setItem("squirrel_total_logs", totalLogsAllTime);
+    hudTotalLogs.textContent = totalLogsAllTime;
 
-setInterval(updateDreamCounter, 3000);
+    let c = 0;
+    let toothElephantFlag=false, toothHippoFlag=false;
+
+    log_corrector.forEach(log => {
+        const cName = log.creature;
+        for(let i=0; i<log.count; i++) {
+            if (Math.random() < lotteryProb) { 
+                if(["オオカミ","カワウソ","コウモリ","キツツキ","ゾウガメ"].includes(cName)) achievementProgress.extinctionCount++;
+                if(cName==="ゾウ") toothElephantFlag=true;
+                if(cName==="カバ") toothHippoFlag=true;
+                if(cName==="トラ" && Math.random() < 0.1 * conditionMult) achievementProgress.huntTiger=true;
+                if(cName==="ライオン" && Math.random() < 0.05 * conditionMult) achievementProgress.huntLion=true;
+                if(cName==="ドングリ" && Math.random() < 0.006 * conditionMult) unlockById("miracle_growth");
+                if(cName==="カイウサギ" && Math.floor(Math.random()*100)+1===1) achievementProgress.jumpRabbit=true;
+                if(cName==="アマガエル" && Math.floor(Math.random()*100)+1===1) achievementProgress.jumpFrog=true;
+                if(cName==="アカカンガルー" && Math.floor(Math.random()*100)+1===10) achievementProgress.jumpKangaroo=true;
+                if(cName==="キリン" && Math.floor(Math.random()*100)+1===50) achievementProgress.tongueGiraffe=true;
+                if(cName==="マレーグマ" && Math.floor(Math.random()*100)+1===25) achievementProgress.tongueBear=true;
+                if(cName==="チューリップ" && Math.floor(Math.random()*6)+1===3) unlockById("tulip_self");
+                if(cName==="クローバー" && Math.floor(Math.random()*100)+1===56) unlockById("max_clover");
+                if(cName==="ホシガメ" && Math.floor(Math.random()*100)+1===29) unlockById("turtle_temp");
+                if(cName==="アヒル" && Math.floor(Math.random()*100)+1===12) unlockById("duck_imprint");
+            }
+        }
+    });
+
+    if(toothElephantFlag && toothHippoFlag) unlockById("tooth_collection");
+    achievementList.forEach(ach => { if(!unlockedAchievements.has(ach.id) && ach.condition()) unlockAchievement(ach); });
+    saveProgress();
+
+    // 耐久値減少
+    for(let k in activePassives) {
+        if(activePassives[k].level > 0) {
+            activePassives[k].durability--;
+            if(activePassives[k].durability <= 0) {
+                activePassives[k].level = 0; activePassives[k].durability = 0;
+                addLog(`Passive Expired: ${passiveDatabase.find(p=>p.id===k).name}`, "system");
+            }
+        }
+    }
+    updatePassiveDisplay();
+
+    const timer = setInterval(() => {
+        c += Math.ceil(total / 30); if(c > total) c = total;
+        countEl.textContent = c; playBlip();
+        const p = document.createElement("div"); p.className = "sucking-log"; p.textContent = "> log";
+        p.style.transform = `translateX(${Math.random()*40-20}px)`; box.appendChild(p);
+        p.animate([{top:'-30px',opacity:1},{top:'20px',opacity:0,transform:'scale(0.1)'}],{duration:300}).onfinish=()=>p.remove();
+        box.classList.remove("box-shake"); void box.offsetWidth; box.classList.add("box-shake");
+
+        if(c >= total) {
+            clearInterval(timer); playFinishSound(); log_corrector=[];
+            setTimeout(() => { isSettling = false; countEl.textContent="0"; }, 1500);
+        }
+    }, 50);
+}
+
+function unlockById(id) { const ach = achievementList.find(a=>a.id===id); if(ach && !unlockedAchievements.has(id)) unlockAchievement(ach); }
+function unlockAchievement(ach) {
+    unlockedAchievements.add(ach.id); addLog(`実績解除: [${ach.title}]`, "system");
+    const t = document.getElementById("toast"); t.textContent = `Unlocked: ${ach.title}`; t.style.display = "block"; setTimeout(()=>t.style.display="none", 3000);
+}
+
+let audioCtx = null;
+function initAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+function playBlip() {
+    if(!audioCtx) return; if(audioCtx.state==='suspended') audioCtx.resume();
+    const o=audioCtx.createOscillator(); const g=audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value=800; g.gain.value=0.05; o.start(); o.stop(audioCtx.currentTime+0.05);
+}
+function playFinishSound() {
+    if(!audioCtx) return;
+    [440,554,659].forEach((f,i)=>{
+        const o=audioCtx.createOscillator(); const g=audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination); o.type='triangle'; o.frequency.value=f;
+        g.gain.setValueAtTime(0, audioCtx.currentTime+i*0.1);
+        g.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime+i*0.1+0.05);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+i*0.1+0.5);
+        o.start(audioCtx.currentTime+i*0.1); o.stop(audioCtx.currentTime+i*0.1+0.5);
+    });
+}
+
+// 実績設定
+let achievementProgress = { extinctionCount: 0, huntTiger: false, huntLion: false, jumpRabbit: false, jumpFrog: false, jumpKangaroo: false, tongueGiraffe: false, tongueBear: false };
+if(localStorage.getItem("squirrel_progress")) achievementProgress = JSON.parse(localStorage.getItem("squirrel_progress"));
+let unlockedAchievements = new Set();
+if(localStorage.getItem("squirrel_achievements")) JSON.parse(localStorage.getItem("squirrel_achievements")).forEach(id=>unlockedAchievements.add(id));
+function saveProgress() { localStorage.setItem("squirrel_progress", JSON.stringify(achievementProgress)); localStorage.setItem("squirrel_achievements", JSON.stringify([...unlockedAchievements])); }
+const achievementList = [
+    { id: "extinction_100", title: "1日100以上の動物を絶滅させる", desc: "オオカミ・カワウソ・コウモリ・キツツキ・ゾウガメの寿命を100回終わらせる", icon: "💀", condition: () => achievementProgress.extinctionCount >= 100 },
+    { id: "tooth_collection", title: "ずっと伸び伸び", desc: "ゾウとカバの歯に関するログを同時に集める", icon: "🦷", condition: () => false },
+    { id: "hunting_time", title: "狩りの時間", desc: "トラとライオンが狩りに成功する", icon: "🍖", condition: () => achievementProgress.huntTiger && achievementProgress.huntLion },
+    { id: "broad_jump", title: "立ち幅跳び", desc: "カイウサギ・アマガエル(1m)、アカカンガルー(10m)の飛距離を観測する", icon: "🐇", condition: () => achievementProgress.jumpRabbit && achievementProgress.jumpFrog && achievementProgress.jumpKangaroo },
+    { id: "miracle_growth", title: "無事に育つって奇跡", desc: "ドングリを発芽させ、無事に育たせる", icon: "🌱", condition: () => false },
+    { id: "long_tongue", title: "ながーい舌", desc: "キリンとマレーグマの舌を眺める", icon: "👅", condition: () => achievementProgress.tongueGiraffe && achievementProgress.tongueBear },
+    { id: "tulip_self", title: "花の魅力は半減せず", desc: "チューリップに3枚の花弁を自覚させる", icon: "🌷", condition: () => false },
+    { id: "max_clover", title: "最大枚数", desc: "56枚葉のクローバーを観測する", icon: "🍀", condition: () => false },
+    { id: "turtle_temp", title: "どっちなんだい？！", desc: "ホシガメに29℃で産卵させる", icon: "🐢", condition: () => false },
+    { id: "duck_imprint", title: "親の顔より見た他人", desc: "アヒルに正しい親を認識させる", icon: "🦆", condition: () => false }
+];
+
+// 図鑑UI
+const modal = document.getElementById("zukan-modal");
+const listEl = document.getElementById("achievement-list");
+document.getElementById("btn-zukan").onclick = () => {
+    initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    listEl.innerHTML = "";
+    achievementList.forEach(ach => {
+        const u = unlockedAchievements.has(ach.id);
+        const d = document.createElement("div"); d.className = `achievement-item ${u?'unlocked':''}`;
+        d.innerHTML = `<div class="ach-icon">${u?ach.icon:"?"}</div><div class="ach-info"><h3>${u?ach.title:"?????"}</h3><p>${u?ach.desc:"Locked"}</p></div>`;
+        listEl.appendChild(d);
+    });
+    modal.style.display = "flex";
+};
+document.getElementById("zukan-close").onclick = () => modal.style.display = "none";
+
+// 開始
+addLog("システム起動...");
+initAudio();
+// タイマーを変数に格納して管理
+mainLoopTimer = setInterval(updateCounter, 2500);
 
 </script>
 </body>
