@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Implementing Squirrel - Final Fix</title>
+<title>Implementing Squirrel - Hacking Cards Fix</title>
 <link href="https://fonts.googleapis.com/css2?family=Cutive+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 /* ---- 全体設定 -------------------------------------------------- */
@@ -41,7 +41,7 @@ body {
     position: fixed; bottom: 0; left: 0; width: 100%; height: 110px;
     background: #fff; border-top: 3px solid #000;
     z-index: 3000;
-    display: flex; align-items: center; justify-content: center; gap: 20px;
+    display: flex; align-items: stretch; justify-content: center; gap: 10px;
     padding: 10px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
     box-sizing: border-box;
 }
@@ -50,23 +50,13 @@ body {
     background: #fff; border: 2px solid #000; padding: 8px 15px;
     box-shadow: 3px 3px 0px rgba(0,0,0,0.1);
     display: flex; flex-direction: column; justify-content: center;
-    height: 100%; box-sizing: border-box;
-    min-width: 120px; position: relative;
+    box-sizing: border-box; min-width: 120px; position: relative;
 }
 .hud-label { font-size: 9px; font-weight: bold; color: #555; letter-spacing: 1px; margin-bottom: 3px; }
 .hud-value { font-size: 20px; font-weight: 900; font-family: "Orbitron"; line-height: 1; }
 .hud-value.depth { font-size: 28px; }
 .hud-value.depth.dream { color: #e91e63; }
 .hud-value.depth.wake { color: #0056b3; }
-
-/* Stabilized Indicator */
-#stabilizer-indicator {
-    position: absolute; top: -10px; right: -10px;
-    background: #00c853; color: #fff; font-size: 9px; padding: 2px 6px;
-    border: 1px solid #000; display: none; font-weight: bold;
-    animation: pulse 1s infinite;
-}
-@keyframes pulse { 0%{opacity:1;} 50%{opacity:0.5;} 100%{opacity:1;} }
 
 .item-slot {
     display: flex; align-items: center; gap: 10px;
@@ -76,16 +66,36 @@ body {
 .item-icon { font-size: 24px; }
 .item-qty { font-weight: bold; font-family: "Orbitron"; font-size: 18px; }
 
-.hud-passive-list { 
-    display: flex; flex-wrap: wrap; gap: 5px; max-width: 300px; 
-    overflow-y: auto; max-height: 60px;
+/* ---- ステータス＆パッチパネル ------------------------------ */
+#stats-panel {
+    flex: 1; display: flex; flex-direction: column; justify-content: space-between;
 }
-.hud-passive-badge {
-    font-size: 10px; padding: 2px 5px; background: #000; color: #fff;
-    display: flex; gap: 5px; align-items: center; border-radius: 2px;
+.stats-row {
+    display: flex; gap: 15px; font-family: "Orbitron"; font-size: 11px; font-weight: bold;
+    border-bottom: 1px dashed #ccc; padding-bottom: 3px;
 }
-.durability-dots { display: flex; gap: 1px; }
-.dot { width: 3px; height: 3px; background: #0f0; border-radius: 50%; }
+.stat-item span { color: #e91e63; font-size: 14px; }
+
+.patch-slots-container { display: flex; gap: 5px; align-items: center; margin-top: 5px; }
+.patch-slot {
+    width: 32px; height: 32px; border: 2px solid #000; background: #f0f0f0;
+    display: flex; justify-content: center; align-items: center; font-size: 18px;
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.2); cursor: default;
+}
+.patch-slot.empty { border: 2px dashed #999; background: #fafafa; box-shadow: none; color: #ccc; font-size: 10px; }
+.set-effect-tags { display: flex; gap: 5px; margin-left: auto; flex-wrap: wrap; max-width: 250px;}
+.set-tag { font-size: 9px; padding: 2px 4px; background: #000; color: #fff; font-family: "Cutive Mono"; }
+.set-tag.land { background: #795548; }
+.set-tag.sea { background: #0288d1; }
+.set-tag.insect { background: #558b2f; }
+.set-tag.plant { background: #388e3c; }
+
+/* ---- アクティブハック表示 ------------------------------ */
+#active-hack-display {
+    position: absolute; top: -35px; left: 0; background: #111; color: #0f0;
+    padding: 5px 15px; border: 2px solid #000; font-size: 10px; font-weight: bold;
+    box-shadow: 0 -3px 10px rgba(0,0,0,0.2); display: flex; gap: 10px; align-items: center;
+}
 
 /* ---- メインコンテンツ ------------------------------------------ */
 #container {
@@ -137,14 +147,15 @@ body {
 .sub-log-area { flex: 1; padding: 5px; overflow-y: auto; font-size: 0.8rem; color: #333; }
 .dream-active .sub-header { background: #e91e63; }
 
-/* ---- パッシブ選択モーダル -------------------------------------- */
-#passive-modal {
+/* ---- モーダル全般 -------------------------------------- */
+.overlay-modal {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(255,255,255,0.95); z-index: 5000;
     display: none; flex-direction: column; justify-content: center; align-items: center;
 }
+
 .passive-choice-container {
-    display: flex; gap: 20px; margin-top: 20px;
+    display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; justify-content: center;
 }
 .passive-card {
     width: 200px; height: 260px; border: 3px solid #000; background: #fff;
@@ -153,37 +164,73 @@ body {
     box-shadow: 5px 5px 0px rgba(0,0,0,0.2); position: relative;
 }
 .passive-card:hover { transform: translateY(-5px); box-shadow: 8px 8px 0px rgba(0,0,0,0.3); background: #f9f9f9; }
-.passive-card.owned { opacity: 0.5; pointer-events: none; border-color: #999; }
-.passive-card.owned::after { content: "OWNED"; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg); font-size: 24px; color: #999; border: 2px solid #999; padding: 5px; }
 
 .p-icon { font-size: 40px; margin-bottom: 10px; }
 .p-name { font-weight: 900; margin-bottom: 10px; font-family: "Orbitron"; }
-.p-desc { font-size: 12px; color: #555; }
-.p-level { margin-top: auto; font-weight: bold; background: #000; color: #fff; padding: 2px 10px; }
+.p-attr { font-size: 10px; padding: 2px 8px; color: #fff; margin-bottom: 5px; font-weight: bold;}
+.p-desc { font-size: 11px; color: #555; line-height: 1.4; }
 
-#modal-current-passives {
-    margin-top: 20px; padding: 10px; border-top: 2px dashed #ccc; width: 80%; text-align: center;
+/* ---- ハッキングモーダル専用 -------------------------------------- */
+#hacking-modal { background: rgba(5, 10, 20, 0.95); z-index: 9000; color: #fff; }
+.hack-card {
+    width: 220px; height: 300px; background: #111; border: 4px solid #fff;
+    padding: 20px; cursor: pointer; transition: 0.3s;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5); position: relative; box-sizing: border-box;
 }
-.modal-badge { display: inline-block; padding: 2px 6px; background: #000; color: #fff; font-size: 10px; margin: 2px; }
+.hack-card:hover { transform: translateY(-10px) scale(1.05); }
 
-/* ---- アイテム使用モーダル -------------------------------------- */
-#item-modal {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: #fff; border: 3px solid #000; padding: 20px; z-index: 6000;
-    display: none; flex-direction: column; align-items: center; box-shadow: 10px 10px 0px rgba(0,0,0,0.2);
+.rank-Normal { border-color: #aaa; box-shadow: 0 0 15px rgba(170,170,170,0.4); }
+.rank-Bronze { border-color: #cd7f32; box-shadow: 0 0 15px rgba(205,127,50,0.4); }
+.rank-Silver { border-color: #e0e0e0; box-shadow: 0 0 15px rgba(224,224,224,0.6); }
+.rank-Gold { border-color: #ffd700; box-shadow: 0 0 20px rgba(255,215,0,0.6); }
+.rank-Platinum { border-color: #fff; box-shadow: 0 0 25px rgba(255,255,255,0.8); animation: pulsePlat 2s infinite; }
+@keyframes pulsePlat { 0%{box-shadow: 0 0 15px #0ff;} 50%{box-shadow: 0 0 30px #f0f;} 100%{box-shadow: 0 0 15px #0ff;} }
+
+.h-rank { font-size: 12px; font-weight: bold; margin-bottom: 15px; letter-spacing: 2px; }
+.h-name { font-size: 18px; font-weight: 900; color: #fff; margin-bottom: 20px; }
+.h-desc { font-size: 13px; color: #ccc; flex-grow: 1; display: flex; align-items: center; line-height: 1.5; }
+
+/* ---- バトルモーダル -------------------------------------- */
+#battle-modal {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(10, 10, 10, 0.95); z-index: 8000;
+    display: none; flex-direction: column; justify-content: center; align-items: center; color: #fff;
 }
+.battle-frame { width: 80%; max-width: 600px; display: flex; justify-content: space-between; margin-bottom: 20px; }
+.battle-status { width: 45%; border: 3px solid #fff; padding: 15px; background: rgba(0,0,0,0.5); font-family: "Orbitron"; }
+.battle-enemy-status { border-color: #e91e63; }
+.hp-bar-bg { width: 100%; height: 15px; background: #333; margin-top: 10px; }
+.hp-bar-fill { height: 100%; background: #0f0; transition: width 0.3s; }
+.hp-bar-fill.enemy { background: #e91e63; }
+#battle-log { width: 80%; max-width: 600px; height: 180px; border: 2px solid #555; background: #111; overflow-y: auto; padding: 10px; font-size: 13px; margin-bottom: 20px; font-family: monospace; }
+.b-log-line { margin-bottom: 5px; border-bottom: 1px dotted #333; padding-bottom: 2px; }
+.battle-btn { background: transparent; color: #fff; border: 2px solid #fff; padding: 10px 30px; font-size: 18px; font-family: "Orbitron"; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.battle-btn:hover { background: #fff; color: #000; }
+.battle-btn.flee { border-color: #555; color: #ccc; }
+.battle-btn.flee:hover { background: #555; color: #fff; }
+
+/* ---- ランダムイベントモーダル -------------------------------------- */
+#event-modal {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85); z-index: 7000; display: none;
+    flex-direction: column; justify-content: center; align-items: center; color: #fff;
+}
+.event-box { width: 80%; max-width: 500px; border: 3px solid #fff; padding: 25px; background: #111; text-align: center; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
+#event-title { margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 10px; font-family: "Orbitron"; }
+#event-desc { font-size: 15px; line-height: 1.6; margin-bottom: 25px; min-height: 80px; }
+.event-btn { background: transparent; color: #fff; border: 2px solid #fff; padding: 10px 20px; font-size: 16px; font-family: "Orbitron"; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.event-btn:hover { background: #fff; color: #000; }
 
 /* ---- その他UI -------------------------------------------------- */
-button {
-    background: #fff; color: #000; border: 2px solid #000; padding: 5px 15px;
-    font-family: inherit; font-weight: bold; cursor: pointer; transition: 0.2s;
-    box-shadow: 2px 2px 0px #000;
-}
+button { background: #fff; color: #000; border: 2px solid #000; padding: 5px 15px; font-family: inherit; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 2px 2px 0px #000; }
 button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
-
 .log-line { margin-bottom: 3px; border-bottom: 1px dotted #eee; }
 .log-line.awaken { color: #0056b3; } 
+.log-line.neutral { color: #555; }
 .log-line.system { font-weight: bold; }
+.log-line.chaos { color: #e91e63; font-weight: bold; }
+.log-line.hack { color: #ffeb3b; font-weight: bold; }
 
 /* 清算演出 */
 #settlement-ui { position: absolute; top: 60px; right: 20px; display: flex; flex-direction: column; align-items: center; z-index: 500; }
@@ -194,7 +241,7 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
 .sucking-log { position: absolute; color: #555; font-size: 10px; pointer-events: none; font-weight:bold; }
 
 /* 図鑑 */
-#zukan-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 6000; display: none; justify-content: center; align-items: center; }
+#zukan-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 6000; display: none; justify-content: center; align-items: center; color:#000; }
 #zukan-content { width: 80%; height: 80%; background: #fff; border: 4px solid #000; padding: 20px; overflow-y: auto; position: relative; box-shadow: 10px 10px 0px rgba(0,0,0,0.1); }
 .achievement-item { border-bottom: 2px solid #eee; padding: 15px; display: flex; align-items: center; opacity: 0.4; }
 .achievement-item.unlocked { opacity: 1; background: #f9f9f9; border-left: 6px solid #000; }
@@ -202,11 +249,9 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
 
 #toast { position: fixed; bottom: 130px; left: 50%; transform: translateX(-50%); background: #000; color: #fff; padding: 15px 30px; display: none; z-index: 7000; animation: slideUp 0.5s ease; border-radius: 4px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); font-weight: bold; }
 @keyframes slideUp { from{transform:translate(-50%,20px);opacity:0;} to{transform:translate(-50%,0);opacity:1;} }
-
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #f0f0f0; border-left: 1px solid #ccc; }
 ::-webkit-scrollbar-thumb { background: #333; }
-
 </style>
 </head>
 <body>
@@ -214,20 +259,24 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
 <div id="toast">Achievement Unlocked!</div>
 
 <div id="bottom-hud">
-    <div class="hud-panel" style="flex: 0 0 150px; text-align:center;">
+    <div id="active-hack-display" style="display:none;">
+        <span>ACTIVE HACK:</span> <span id="hud-hack-name">-</span>
+    </div>
+
+    <div class="hud-panel" style="flex: 0 0 120px; text-align:center;">
         <div class="hud-label">DREAM DEPTH</div>
-        <div id="stabilizer-indicator">STABILIZED</div> <div id="hud-depth-value" class="hud-value depth">0</div>
+        <div id="hud-depth-value" class="hud-value depth">0</div>
         <div id="hud-status-text" style="font-size:10px; margin-top:2px;">NEUTRAL</div>
     </div>
 
-    <div class="hud-panel" style="flex: 0 0 180px; text-align:center;">
+    <div class="hud-panel" style="flex: 0 0 140px; text-align:center;">
         <div class="hud-label">TOTAL DATA</div>
         <div id="hud-total-logs" class="hud-value">0</div>
     </div>
 
-    <div class="hud-panel" style="flex: 0 0 160px;">
+    <div class="hud-panel" style="flex: 0 0 140px;">
         <div class="hud-label">INVENTORY</div>
-        <div class="item-slot" onclick="openItemModal()" title="Dream Shifter">
+        <div class="item-slot" title="Dream Shifter">
             <span class="item-icon">🧬</span>
             <div>
                 <div style="font-size:10px;">Dream Shifter</div>
@@ -236,35 +285,87 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
         </div>
     </div>
 
-    <div class="hud-panel" style="flex: 1; align-items:flex-start;">
-        <div class="hud-label">ACTIVE PATCHES</div>
-        <div id="hud-passive-list" class="hud-passive-list">
-            <div style="font-size:10px; color:#999;">NONE</div>
+    <div class="hud-panel" id="stats-panel">
+        <div class="stats-row">
+            <div class="stat-item">ATK: <span id="stat-atk">0</span></div>
+            <div class="stat-item">HP: <span id="stat-hp">100/100</span></div>
+            <div class="stat-item">SPD: <span id="stat-spd">10</span></div>
+            <div class="stat-item">CRIT: <span id="stat-crit">5</span>%</div>
+            <div class="stat-item">CRIT DMG: <span id="stat-critdmg">1.5</span>x</div>
+        </div>
+        <div class="patch-slots-container">
+            <div class="hud-label" style="margin:0;">SLOTS [ <span id="slot-count">0</span>/5 ]</div>
+            <div id="patch-slots-ui" style="display:flex; gap:5px; margin-left:10px;">
+                <div class="patch-slot empty">1</div>
+                <div class="patch-slot empty">2</div>
+                <div class="patch-slot empty">3</div>
+                <div class="patch-slot empty">4</div>
+                <div class="patch-slot empty">5</div>
+            </div>
+            <div class="set-effect-tags" id="set-effect-tags"></div>
         </div>
     </div>
 </div>
 
 <div id="outer-layers-container"></div>
 
-<div id="passive-modal">
-    <h2 style="border-bottom:3px solid #000; padding:10px;">SYSTEM INTERRUPT: SELECT PATCH</h2>
-    
-    <div id="modal-current-passives">
-        <div style="font-size:12px; margin-bottom:5px;">CURRENT STATUS:</div>
-        <div id="modal-passive-list-container" style="display:flex; justify-content:center; gap:5px; flex-wrap:wrap;"></div>
+<div id="tutorial-modal" class="overlay-modal" style="z-index: 9500; background: rgba(0, 5, 15, 0.95); color: #fff;">
+    <div style="width: 80%; max-width: 500px; border: 3px solid #fff; padding: 30px; background: #111; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px; box-shadow: 0 0 30px rgba(0,0,0,0.8);">
+        <h1 style="margin: 0; font-family: 'Orbitron'; color: #0ff; font-size: 24px;">SYSTEM INITIALIZED</h1>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; text-align: left; width: 100%;">
+            <p style="font-size: 16px; line-height: 1.6; margin: 0; font-weight: bold;">とにかくログを集めて<br>アチーブメントを達成しよう！</p>
+            <img src="iruka_sisaku.png" alt="Tutorial Image" style="width: 120px; height: auto; border: none; background: #fff;">
+        </div>
+        <button class="battle-btn" style="margin-top: 20px;" onclick="closeTutorial()">システムを起動する</button>
     </div>
+</div>
 
+<div id="hacking-modal" class="overlay-modal">
+    <h1 style="color:#0ff; margin-bottom:10px; font-size:32px;">SYSTEM HACK INITIATED</h1>
+    <p style="font-size: 14px; margin-bottom: 30px; color: #ccc;">閾値到達: 獲得するパッチコードを1つ選択してください (次回発生まで永続)</p>
+    <div id="hacking-choices" class="passive-choice-container"></div>
+</div>
+
+<div id="passive-modal" class="overlay-modal">
+    <h2 style="border-bottom:3px solid #000; padding:10px;">SYSTEM INTERRUPT: SELECT COMBAT PATCH</h2>
     <div id="passive-choices" class="passive-choice-container"></div>
 </div>
 
-<div id="item-modal">
-    <h3>USE: Dream Shifter</h3>
-    <p>Modify Dream Counter?</p>
-    <div style="display:flex; gap:10px; margin-top:10px;">
-        <button onclick="useShifter(-1)">-1 (Deep)</button>
-        <button onclick="useShifter(1)">+1 (Wake)</button>
+<div id="replace-modal" class="overlay-modal" style="z-index: 5500;">
+    <h2 style="border-bottom:3px solid #000; padding:10px; color:#000;">SLOT FULL: どのパッチを破棄しますか？</h2>
+    <p style="font-size:12px; color:#555;">クリックしたパッチが破棄され、新しいパッチが上書きインストールされます。</p>
+    <div id="replace-choices" class="passive-choice-container" style="max-width:90%; justify-content:center;"></div>
+    <button style="margin-top:30px;" onclick="cancelReplace()">キャンセル (破棄)</button>
+</div>
+
+<div id="battle-modal">
+    <h1 style="color:#e91e63; margin-bottom: 5px;">WARNING: ENEMY ENCOUNTER</h1>
+    <p style="font-size: 12px; margin-bottom: 20px; color: #ccc;">システム防壁にナイトメアが接触しました</p>
+    <div class="battle-frame">
+        <div class="battle-status">
+            <h3 style="margin-top:0;">PLAYER</h3>
+            <div id="b-player-hp-text">HP: 100 / 100</div>
+            <div class="hp-bar-bg"><div id="b-player-hp-bar" class="hp-bar-fill"></div></div>
+        </div>
+        <div class="battle-status battle-enemy-status">
+            <h3 style="margin-top:0;" id="b-enemy-name">NIGHTMARE Lv.1</h3>
+            <div id="b-enemy-hp-text">HP: 100 / 100</div>
+            <div class="hp-bar-bg"><div id="b-enemy-hp-bar" class="hp-bar-fill enemy"></div></div>
+        </div>
     </div>
-    <button style="margin-top:20px; border:none; box-shadow:none; text-decoration:underline;" onclick="closeItemModal()">Cancel</button>
+    <div id="battle-log"></div>
+    <div style="display:flex; gap:20px;" id="battle-commands">
+        <button class="battle-btn" onclick="battleAction('attack')">FIGHT (戦う)</button>
+        <button class="battle-btn flee" onclick="battleAction('flee')">FLEE (逃げる)</button>
+    </div>
+</div>
+
+<div id="event-modal">
+    <div class="event-box">
+        <h2 id="event-title">UNKNOWN ENTITY</h2>
+        <p id="event-desc"></p>
+        <div id="event-choices" style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;"></div>
+    </div>
 </div>
 
 <div id="container">
@@ -274,7 +375,6 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
         </div>
         <button id="btn-zukan">ACHIEVEMENTS</button>
     </div>
-    
     <div id="main-content-area">
         <div id="settlement-ui">
             <div id="settlement-count">0</div>
@@ -282,11 +382,9 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
                 <span style="font-size:24px">📥</span>
             </div>
         </div>
-
         <div id="main-log-window"></div>
         <div id="dream-container"></div>
     </div>
-
     <div id="footer">
         <span style="font-size:10px; color:#555;">SYSTEM READY...</span>
     </div>
@@ -302,18 +400,25 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
 
 <script>
 // ================================================================
-// データ定義
+// 1. DOM要素取得 (エラー回避のため最上部に配置)
 // ================================================================
-const logsCreature = ["オオカミ", "カワウソ", "ゾウガメ", "ゾウ", "カバ", "トラ", "ライオン", "カイウサギ", "アカカンガルー", "キリン", "マレーグマ", "ホシガメ", "アヒル", "キツネ", "ヤマネコ", "イノシシ", "エゾジカ", "リス", "ネズミ", "アザラシ", "ジュゴン", "スナメリ", "タヌキ", "テン", "ヤギ", "ノマウマ", "モモンガ", "ハクビシン", "ムササビ", "ウシ", "ブタ", "ニワトリ", "ラッコ", "カピバラ", "パンダ", "サイ", "アリクイ", "カカポ", "コウモリ", "キツツキ", "キジバト", "アマガエル", "アジ", "アンコウ", "オジサン", "サケ", "コイ", "エイ", "イルカ", "クジラ", "サメ", "トビウオ", "マンボウ", "サバ", "ハマグリ", "シジミ", "ナマコ", "ウニ", "アゲハチョウ", "トンボ", "イナゴ", "バッタ", "テントウムシ", "ミツバチ", "クマゼミ", "ツクツクボウシ", "キリギリス", "カブトムシ", "ゲンジボタル", "コオロギ", "カゲロウ", "カ", "ナナフシ", "カマキリ", "ダンゴムシ", "クモ", "サソリ", "ハエ", "オリーブ", "ツバキ", "サルスベリ", "バオバブ", "カエデ", "ススキ", "アサガオ", "キキョウ", "ハルジオン", "ウメ", "ブルーベリー", "ザクロ", "レンコン", "豆苗", "オジギソウ", "ドクダミ", "ハエトリグサ", "サルビア", "リュウゼツラン", "ドングリ", "チューリップ", "クローバー"];
-const targetCreatures = ["オオカミ", "カワウソ", "コウモリ", "キツツキ", "ゾウガメ", "ゾウ", "カバ", "トラ", "ライオン", "アマガエル", "カイウサギ", "アカカンガルー", "ドングリ", "キリン", "マレーグマ", "チューリップ", "クローバー", "ホシガメ", "アヒル"];
-const logsSystem = ["メモリ最適化", "ガベージコレクション", "デフラグメンテーション", "論理チェック", "キャッシュクリア", "スタックトレース", "例外処理", "プロセス強制終了"];
-const logsObjects = [
-"遠吠え", "仲間", "寿命", "水中", "小石", "寿命", "最初の一歩", "長い首", "寿命", "長い鼻", "大きな耳", "奥歯", "大きく口", "水面から顔", "犬歯", "鋭い爪", "低く唸り声", "獲物", "唸り声", "たてがみ", "獲物", "鼻", "長い耳", "？mの距離", "草", "尻尾で体", "？mの距離", "長い首", "首バトル", "？cmの舌", "胸の模様", "木", "？cmの舌", "手足", "陸地", "?度で卵", "親の後ろ", "水面", "初めて見た{ i }", "耳", "ふさふさの尾", "石", "茂み", "鋭く遠く", "足音を立てないよう", "地面", "鋭い牙", "勢い", "立派な角", "鋭い声", "白いお尻", "頬袋", "木", "木の実", "チーズ", "機敏な動き", "狭い穴", "好みの岩場", "水から顔", "腹", "河川", "尾びれ", "あくび", "丸い頭", "つるりとした背中", "静かに息継ぎ", "寝たふり", "木", "人間", "木", "枝から枝へ", "後ろ足", "紙", "鳴き声", "角", "たてがみ", "辺り", "辺り", "飛膜", "木から木へ", "大きな瞳で何か", "顔", "電線", "農地", "空", "大きな飛膜", "木の幹", "草", "反芻", "角", "地面", "餌", "尻尾", "地面", "時", "羽", "貝", "昆布", "毛", "草", "目", "温泉", "笹", "木", "タイヤ", "角", "泥", "地面", "長い舌", "アリ塚", "鋭い爪", "森の床", "低い声", "木の実", "逆さま", "超音波", "寿命", "木", "幹", "寿命", "低い鳴き声", "大きな羽音", "首", "壁", "喉", "?mの距離", "口", "鱗", "群れ", "頭の提灯", "砂泥", "丸のみしようと口", "顎のヒゲ", "砂底", "海底", "川", "川底に卵", "命の危機", "口", "水面", "体", "ヒレ", "砂底に身", "宙返り", "波しぶき", "面白そうなもの", "頭から息", "潮", "大きな尾びれ", "海面", "背びれ", "獲物", "白目", "水面", "大きな胸ビレ", "波の上", "ヒレ", "水面", "おちょぼ口", "群れ", "青緑色の背中", "回遊", "固く殻", "砂の中から水管", "砂底", "小さな殻", "水管", "砂底", "海底", "体", "砂泥", "鋭いトゲ", "昆布", "管足", "花の蜜", "美しい羽", "空", "空", "獲物", "水面", "群れ", "地面", "稲の葉", "地面", "羽", "新たな草", "植物の茎", "硬い翅", "アブラムシ", "花の蜜", "花粉", "ダンス", "透明な羽", "大きな音", "樹に口", "夏の終わり", "複雑なリズム", "透明な羽", "羽", "触角", "獲物", "角", "硬い翅", "樹液", "光", "水辺", "夜露", "羽", "涼やかな音", "長い触角", "透明な羽", "空", "水面", "人間の横", "美味しそうな血", "針", "長い足", "体", "葉", "首", "鎌", "獲物", "体", "暗い場所", "枯れ葉", "糸", "網", "獲物", "ハサミ", "毒針", "砂の上", "手", "宙", "壁", "葉", "実", "太陽の光", "赤い花", "葉", "また一つ花", "鮮やかな花", "古い樹皮", "風", "幹に水", "根のような枝", "サバンナ", "葉", "葉っぱ", "種", "穂", "綿毛", "満月", "ツル", "花", "種", "蕾", "星形の花", "紫色の花弁", "蕾", "薄紅色の花", "春風", "蕾", "香り", "実", "鈴のような花", "実", "葉", "朱色の花", "実", "熟れた実", "泥中に茎", "水面に葉", "ハス", "光", "茎", "再び芽", "葉", "茎", "ゆっくりと葉", "白い十字の花", "独特の香り", "ハート形の葉", "葉", "獲物", "素早く葉", "甘い蜜", "蜜", "蜜", "鋭いトゲ", "空高く花茎", "最期の花", "重力", "地面", "芽", "光合成", "風", "?枚の花びら", "新たな茎", "白い花", "?つ葉"
-];
+const container = document.getElementById("container");
+const outerLayers = document.getElementById("outer-layers-container");
+const mainLogWin = document.getElementById("main-log-window");
+const dreamArea = document.getElementById("dream-container");
+const passiveModal = document.getElementById("passive-modal");
+const passiveChoices = document.getElementById("passive-choices");
+const replaceModal = document.getElementById("replace-modal");
+const replaceChoices = document.getElementById("replace-choices");
 
-const logsActions = [
-"した", "見つけた", "迎えた", "素早く泳いだ", "手で転がした", "迎えた", "踏み出した", "伸ばした", "迎えた", "高く上げた", "パタつかせた", "生え変わらせた", "開けた", "出した", "伸ばし続けている", "研いだ", "あげた", "見つけた", "あげている", "揺らした", "見つけた", "ピクつかせた", "立てた", "跳ねた", "噛もうとしている", "支えた", "跳ねた", "伸ばした", "している", "出した", "見せびらかしている", "よじ登った", "伸ばした", "引っ込めた", "歩いた", "産んだ", "付いていっている", "泳いだ", "親と思った", "ピンと立てた", "揺らした", "つついた", "見つめた", "睨んだ", "歩いた", "掘り返した", "見せた", "つけて突進した", "掲げた", "出した", "見せた", "膨らませている", "素早く登った", "見つけた", "見つけた", "した", "潜った", "探している", "出した", "見せた", "泳いでいる", "揺らした", "した", "出した", "見せた", "した", "した", "見上げている", "仲間だと思った", "素早く登った", "走っている", "使って立った", "食べた", "あげている", "突き出した", "揺らした", "見回した", "走っている", "広げた", "滑空した", "見つめている", "こすっている", "器用に渡った", "素早く駆けた", "滑空した", "広げた", "ハグした", "食んだ", "行った", "突き出した", "掘った", "平らげた", "振った", "つついた", "告げた", "羽ばたかせた", "割った", "巻いた", "繕った", "食んだ", "細めた", "楽しんでいる", "頬張った", "登った", "転がした", "突き出した", "浴びた", "揺らした", "伸ばした", "壊しそうとしている", "立てた", "歩いた", "響かせた", "食べた", "楽しんでいる", "発した", "迎えた", "激しくつついた", "垂直に登った", "迎えた", "響かせた", "立てた", "振りながら歩いている", "登った", "膨らませた", "跳ねた", "素早く動かしている", "きらめかせた", "成した", "揺らした", "潜った", "開けた", "動かした", "つついた", "泳いだ", "力強く遡っている", "産んだ", "免れた", "パクパクさせた", "跳ねた", "じっとさせている", "大きく羽ばたかせた", "隠した", "をした", "あげた", "見つけた", "吐いた", "高く吹いた", "上げた", "豪快に跳ねた", "水面に出した", "追い詰めた", "剥いた", "勢いよく飛び出した", "広げた", "滑空した", "パタパタさせた", "漂っている", "開けた", "なして泳いだ", "きらめかせた", "している", "閉じた", "出した", "深く潜った", "固く閉じた", "わずかに出した", "潜った", "ゆっくり這った", "縮ませた", "飲み込んだ", "動かした", "見つけた", "伸ばした", "吸った", "広げた", "舞った", "飛んだ", "捕らえようとしている", "叩いた", "なした", "蹴って飛んだ", "みつけた", "蹴った", "広げた", "見つけた", "登った", "広げた", "発見した", "集めた", "運んだ", "踊った", "広げた", "響かせた", "刺した", "告げた", "刻んだ", "畳んだ", "震わせた", "動かした", "見つけた", "突き出した", "広げた", "見つけた", "放った", "舞った", "飲んだ", "擦り合わせた", "奏でた", "揺らした", "広げた", "舞った", "かすめた", "通り過ぎた", "見つけた", "刺した", "伸ばした", "揺らした", "かじった", "回した", "構えた", "捕らえた", "丸めた", "見つけて安心した", "食べた", "吐いた", "張った", "捕らえた", "カチカチした", "振り上げた", "歩いている", "擦り合わせた", "舞っている", "舐めている", "揺らした", "実らせた", "浴びた", "咲かせた", "光らせた", "落とした", "咲かせた", "落とした", "感じた", "蓄えている", "広げた", "見つめている", "赤く染めた", "広げた", "飛ばした", "なびかせている", "飛ばした", "見ている", "伸ばした", "開いた", "付けた", "膨らませた", "開いた", "広げた", "垂れた", "咲かせた", "感じた", "ほころばせた", "漂わせている", "膨らませた", "咲かせた", "青く染めた", "赤くした", "咲かせた", "弾けさせた", "落とした", "伸ばした", "広げた", "咲かせた", "浴びている", "まっすぐ伸ばしている", "伸ばした", "畳んだ", "垂れた", "開いた", "咲かせた", "漂わせている", "広げた", "広げて待ち構えている", "感じた", "閉じた", "蓄えた", "小学生に吸われた", "蝶々に吸われた", "構えた", "伸ばした", "咲かせた", "感じた", "転がっている", "吹いた", "している", "感じている", "開いた", "地面に這わせた", "咲かせた", "広げた"
-];
+// ================================================================
+// 2. データ定義関連
+// ================================================================
+const logsNeutral = ["待機中...", "システム安定", "環境ノイズを受信", "微弱なシグナルを検知"]; 
+const logsAwaken = ["メモリ最適化", "ガベージコレクション", "デフラグメンテーション", "論理チェック", "キャッシュクリア", "スタックトレース", "例外処理", "プロセス強制終了"]; 
+const logsCreature = ["オオカミ", "カワウソ", "ゾウガメ", "ゾウ", "カバ", "トラ", "ライオン", "カイウサギ", "アカカンガルー", "キリン", "マレーグマ", "ホシガメ", "アヒル", "キツネ", "ヤマネコ", "イノシシ", "エゾジカ", "リス", "ネズミ", "アザラシ", "ジュゴン", "スナメリ", "タヌキ", "テン", "ヤギ", "ノマウマ", "モモンガ", "ハクビシン", "ムササビ", "ウシ", "ブタ", "ニワトリ", "ラッコ", "カピバラ", "パンダ", "サイ", "アリクイ", "カカポ", "コウモリ", "キツツキ", "キジバト", "アマガエル", "アジ", "アンコウ", "オジサン", "サケ", "コイ", "エイ", "イルカ", "クジラ", "サメ", "トビウオ", "マンボウ", "サバ", "ハマグリ", "シジミ", "ナマコ", "ウニ", "アゲハチョウ", "トンボ", "イナゴ", "バッタ", "テントウムシ", "ミツバチ", "クマゼミ", "ツクツクボウシ", "キリギリス", "カブトムシ", "ゲンジボタル", "コオロギ", "カゲロウ", "カ", "ナナフシ", "カマキリ", "ダンゴムシ", "クモ", "サソリ", "ハエ", "オリーブ", "ツバキ", "サルスベリ", "バオバブ", "カエデ", "ススキ", "アサガオ", "キキョウ", "ハルジオン", "ウメ", "ブルーベリー", "ザクロ", "レンコン", "豆苗", "オジギソウ", "ドクダミ", "ハエトリグサ", "サルビア", "リュウゼツラン", "ドングリ", "チューリップ", "クローバー"];
+const logsObjects = ["遠吠え", "仲間", "寿命", "水中", "小石", "寿命", "最初の一歩", "長い首", "寿命", "長い鼻", "大きな耳", "奥歯", "大きく口", "水面から顔", "犬歯", "鋭い爪", "低く唸り声", "獲物", "唸り声", "たてがみ", "獲物", "鼻", "長い耳", "？mの距離", "草", "尻尾で体", "？mの距離", "長い首", "首バトル", "？cmの舌", "胸の模様", "木", "？cmの舌", "手足", "陸地", "?度で卵", "親の後ろ", "水面", "初めて見た{ i }", "耳", "ふさふさの尾", "石", "茂み", "鋭く遠く", "足音を立てないよう", "地面", "鋭い牙", "勢い", "立派な角", "鋭い声", "白いお尻", "頬袋", "木", "木の実", "チーズ", "機敏な動き", "狭い穴", "好みの岩場", "水から顔", "腹", "河川", "尾びれ", "あくび", "丸い頭", "つるりとした背中", "静かに息継ぎ", "寝たふり", "木", "人間", "木", "枝から枝へ", "後ろ足", "紙", "鳴き声", "角", "たてがみ", "辺り", "辺り", "飛膜", "木から木へ", "大きな瞳で何か", "顔", "電線", "農地", "空", "大きな飛膜", "木の幹", "草", "反芻", "角", "地面", "餌", "尻尾", "地面", "時", "羽", "貝", "昆布", "毛", "草", "目", "温泉", "笹", "木", "タイヤ", "角", "泥", "地面", "長い舌", "アリ塚", "鋭い爪", "森の床", "低い声", "木の実", "逆さま", "超音波", "寿命", "木", "幹", "寿命", "低い鳴き声", "大きな羽音", "首", "壁", "喉", "?mの距離", "口", "鱗", "群れ", "頭の提灯", "砂泥", "丸のみしようと口", "顎のヒゲ", "砂底", "海底", "川", "川底に卵", "命の危機", "口", "水面", "体", "ヒレ", "砂底に身", "宙返り", "波しぶき", "面白そうなもの", "頭から息", "潮", "大きな尾びれ", "海面", "背びれ", "獲物", "白目", "水面", "大きな胸ビレ", "波の上", "ヒレ", "水面", "おちょぼ口", "群れ", "青緑色の背中", "回遊", "固く殻", "砂の中から水管", "砂底", "小さな殻", "水管", "砂底", "海底", "体", "砂泥", "鋭いトゲ", "昆布", "管足", "花の蜜", "美しい羽", "空", "空", "獲物", "水面", "群れ", "地面", "稲の葉", "地面", "羽", "新たな草", "植物の茎", "硬い翅", "アブラムシ", "花の蜜", "花粉", "ダンス", "透明な羽", "大きな音", "樹に口", "夏の終わり", "複雑なリズム", "透明な羽", "羽", "触角", "獲物", "角", "硬い翅", "樹液", "光", "水辺", "夜露", "羽", "涼やかな音", "長い触角", "透明な羽", "空", "水面", "人間の横", "美味しそうな血", "針", "長い足", "体", "葉", "首", "鎌", "獲物", "体", "暗い場所", "枯れ葉", "糸", "網", "獲物", "ハサミ", "毒針", "砂の上", "手", "宙", "壁", "葉", "実", "太陽の光", "赤い花", "葉", "また一つ花", "鮮やかな花", "古い樹皮", "風", "幹に水", "根のような枝", "サバンナ", "葉", "葉っぱ", "種", "穂", "綿毛", "満月", "ツル", "花", "種", "蕾", "星形の花", "紫色の花弁", "蕾", "薄紅色の花", "春風", "蕾", "香り", "実", "鈴のような花", "実", "葉", "朱色の花", "実", "熟れた実", "泥中に茎", "水面に葉", "ハス", "光", "茎", "再び芽", "葉", "茎", "ゆっくりと葉", "白い十字の花", "独特の香り", "ハート形の葉", "葉", "獲物", "素早く葉", "甘い蜜", "蜜", "蜜", "鋭いトゲ", "空高く花茎", "最期の花", "重力", "地面", "芽", "光合成", "風", "?枚の花びら", "新たな茎", "白い花", "?つ葉"];
+const logsActions = ["した", "見つけた", "迎えた", "素早く泳いだ", "手で転がした", "迎えた", "踏み出した", "伸ばした", "迎えた", "高く上げた", "パタつかせた", "生え変わらせた", "開けた", "出した", "伸ばし続けている", "研いだ", "あげた", "見つけた", "あげている", "揺らした", "見つけた", "ピクつかせた", "立てた", "跳ねた", "噛もうとしている", "支えた", "跳ねた", "伸ばした", "している", "出した", "見せびらかしている", "よじ登った", "伸ばした", "引っ込めた", "歩いた", "産んだ", "付いていっている", "泳いだ", "親と思った", "ピンと立てた", "揺らした", "つついた", "見つめた", "睨んだ", "歩いた", "掘り返した", "見せた", "つけて突進した", "掲げた", "出した", "見せた", "膨らませている", "素早く登った", "見つけた", "見つけた", "した", "潜った", "探している", "出した", "見せた", "泳いでいる", "揺らした", "した", "出した", "見せた", "した", "した", "見上げている", "仲間だと思った", "素早く登った", "走っている", "使って立った", "食べた", "あげている", "突き出した", "揺らした", "見回した", "走っている", "広げた", "滑空した", "見つめている", "こすっている", "器用に渡った", "素早く駆けた", "滑空した", "広げた", "ハグした", "食んだ", "行った", "突き出した", "掘った", "平らげた", "振った", "つついた", "告げた", "羽ばたかせた", "割った", "巻いた", "繕った", "食んだ", "細めた", "楽しんでいる", "頬張った", "登った", "転がした", "突き出した", "浴びた", "揺らした", "伸ばした", "壊しそうとしている", "立てた", "歩いた", "響かせた", "食べた", "楽しんでいる", "発した", "迎えた", "激しくつついた", "垂直に登った", "迎えた", "響かせた", "立てた", "振りながら歩いている", "登った", "膨らませた", "跳ねた", "素早く動かしている", "きらめかせた", "成した", "揺らした", "潜った", "開けた", "動かした", "つついた", "泳いだ", "力強く遡っている", "産んだ", "免れた", "パクパクさせた", "跳ねた", "じっとさせている", "大きく羽ばたかせた", "隠した", "をした", "あげた", "見つけた", "吐いた", "高く吹いた", "上げた", "豪快に跳ねた", "水面に出した", "追い詰めた", "剥いた", "勢いよく飛び出した", "広げた", "滑空した", "パタパタさせた", "漂っている", "開けた", "なして泳いだ", "きらめかせた", "している", "閉じた", "出した", "深く潜った", "固く閉じた", "わずかに出した", "潜った", "ゆっくり這った", "縮ませた", "飲み込んだ", "動かした", "見つけた", "伸ばした", "吸った", "広げた", "舞った", "飛んだ", "捕らえようとしている", "叩いた", "なした", "蹴って飛んだ", "みつけた", "蹴った", "広げた", "見つけた", "登った", "広げた", "発見した", "集めた", "運んだ", "踊った", "広げた", "響かせた", "刺した", "告げた", "刻んだ", "畳んだ", "震わせた", "動かした", "見つけた", "突き出した", "広げた", "見つけた", "放った", "舞った", "飲んだ", "擦り合わせた", "奏でた", "揺らした", "広げた", "舞った", "かすめた", "通り過ぎた", "見つけた", "刺した", "伸ばした", "揺らした", "かじった", "回した", "構えた", "捕らえた", "丸めた", "見つけて安心した", "食べた", "吐いた", "張った", "捕らえた", "カチカチした", "振り上げた", "歩いている", "擦り合わせた", "舞っている", "舐めている", "揺らした", "実らせた", "浴びた", "咲かせた", "光らせた", "落とした", "咲かせた", "落とした", "感じた", "蓄えている", "広げた", "見つめている", "赤く染めた", "広げた", "飛ばした", "なびかせている", "飛ばした", "見ている", "伸ばした", "開いた", "付けた", "膨らませた", "開いた", "広げた", "垂れた", "咲かせた", "感じた", "ほころばせた", "漂わせている", "膨らませた", "咲かせた", "青く染めた", "赤くした", "咲かせた", "弾けさせた", "落とした", "伸ばした", "広げた", "咲かせた", "浴びている", "まっすぐ伸ばしている", "伸ばした", "畳んだ", "垂れた", "開いた", "咲かせた", "漂わせている", "広げた", "広げて待ち構えている", "感じた", "閉じた", "蓄えた", "小学生に吸われた", "蝶々に吸われた", "構えた", "伸ばした", "咲かせた", "感じた", "転がっている", "吹いた", "している", "感じている", "開いた", "地面に這わせた", "咲かせた", "広げた"];
 const actionData = {
     LAND: { sleepStart: "は眠りについた", sleeping: "は寝ている", wakeUp: "は目を覚ました", eatStart: "は食べ始めた", eating: ["は夢中で食べている","はモグモグしている"], eatEnd: "は満腹になった", normal: ["は歩いている","はあくびした","は辺りを見た"] },
     WATER: { sleepStart: "は水底で静止した", sleeping: "は流されている", wakeUp: "は泳ぎ出した", eatStart: "は餌をついばんだ", eating: ["は吸い込んでいる","は食んでいる"], eatEnd: "は泳ぎ去った", normal: ["は泳いでいる","は泡を吐いた","は旋回した"] },
@@ -321,391 +426,711 @@ const actionData = {
     PLANT: { sleepStart: "は閉じた", sleeping: "は休眠している", wakeUp: "は開いた", eatStart: "は養分を吸った", eating: ["は光合成している","は水を蓄えている"], eatEnd: "は生長した", normal: ["は揺れている","は佇んでいる","は弾いた"] }
 };
 
-// ================================================================
-// パッシブ・アイテムシステム定義
-// ================================================================
-
-const passiveDatabase = [
-    { id: "targeting", name: "Targeting", icon:"🎯", desc: ["対象生物出現率 3倍", "対象生物出現率 10倍", "対象生物のみ出現"] },
-    { id: "overclock", name: "Overclock", icon:"⚡", desc: ["ログ生成速度 x1.5", "ログ生成速度 x3.0", "ログ生成速度 x10.0"] },
-    { id: "rng_hack", name: "RNG Hack", icon:"🎲", desc: ["精算成功率 x1.2", "精算成功率 x2.0", "くじ100% & 判定50倍緩和"] },
-    { id: "multithread", name: "Multithread", icon:"💻", desc: ["ウィンドウ数 +2", "ウィンドウ数 +5", "ウィンドウ数 +10"] },
-    { id: "stabilizer", name: "Stabilizer", icon:"⚓", desc: ["深度10到達で帰還支援(小)", "深度10到達で帰還支援(大)", "深度10到達で帰還確定"] }
+const patchDatabase = [
+    { id: "land_1", name: "鋭い牙(陸)", attr: "陸", css: "attr-land", icon: "🐺", desc: "単体効果: クリティ倍率 +0.2x", apply: (st, b=1) => st.critDmg += (0.2*b) },
+    { id: "land_2", name: "重圧の蹄(陸)", attr: "陸", css: "attr-land", icon: "🐗", desc: "単体効果: クリティ倍率 +0.3x", apply: (st, b=1) => st.critDmg += (0.3*b) },
+    { id: "land_3", name: "剛腕の爪(陸)", attr: "陸", css: "attr-land", icon: "🐻", desc: "単体効果: クリティ倍率 +0.5x", apply: (st, b=1) => st.critDmg += (0.5*b) },
+    { id: "sea_1", name: "流線型の鱗(海)", attr: "海", css: "attr-sea", icon: "🐟", desc: "単体効果: スピード +5", apply: (st, b=1) => st.spd += (5*b) },
+    { id: "sea_2", name: "反響定位(海)", attr: "海", css: "attr-sea", icon: "🐬", desc: "単体効果: スピード +8", apply: (st, b=1) => st.spd += (8*b) },
+    { id: "sea_3", name: "水流の尾(海)", attr: "海", css: "attr-sea", icon: "🦈", desc: "単体効果: スピード +12", apply: (st, b=1) => st.spd += (12*b) },
+    { id: "insect_1", name: "複眼(虫)", attr: "虫", css: "attr-insect", icon: "🦋", desc: "単体効果: クリティ率 +5%", apply: (st, b=1) => st.critRate += (5*b) },
+    { id: "insect_2", name: "猛毒の針(虫)", attr: "虫", css: "attr-insect", icon: "🐝", desc: "単体効果: クリティ率 +8%", apply: (st, b=1) => st.critRate += (8*b) },
+    { id: "insect_3", name: "蟷螂の鎌(虫)", attr: "虫", css: "attr-insect", icon: "🦗", desc: "単体効果: クリティ率 +12%", apply: (st, b=1) => st.critRate += (12*b) },
+    { id: "plant_1", name: "光合成葉(草)", attr: "草", css: "attr-plant", icon: "🌿", desc: "単体効果: 最大体力 +50", apply: (st, b=1) => st.maxHp += (50*b) },
+    { id: "plant_2", name: "深き根(草)", attr: "草", css: "attr-plant", icon: "🌳", desc: "単体効果: 最大体力 +80", apply: (st, b=1) => st.maxHp += (80*b) },
+    { id: "plant_3", name: "大樹の恵み(草)", attr: "草", css: "attr-plant", icon: "🌲", desc: "単体効果: 最大体力 +150", apply: (st, b=1) => st.maxHp += (150*b) }
 ];
-
-let activePassives = { 
-    targeting: { level: 0, durability: 0 },
-    overclock: { level: 0, durability: 0 },
-    rng_hack: { level: 0, durability: 0 },
-    multithread: { level: 0, durability: 0 },
-    stabilizer: { level: 0, durability: 0 }
-};
-
-let inventory = { shifter: 0 };
-let totalLogsAllTime = 0; 
-if (localStorage.getItem("squirrel_total_logs")) {
-    totalLogsAllTime = parseInt(localStorage.getItem("squirrel_total_logs"), 10);
-}
-
-let dreamCounter = 0;
-let isSettling = false;
-let isPaused = false;
-let isStabilized = false; // Stabilizer発動フラグ
-let activeWindows = {};
-let log_corrector = [];
-let mainLoopTimer = null; // タイマーID管理用
-
-// ================================================================
-// UI制御
-// ================================================================
-
-const container = document.getElementById("container");
-const outerLayers = document.getElementById("outer-layers-container");
-const mainLogWin = document.getElementById("main-log-window");
-const dreamArea = document.getElementById("dream-container");
-
-// HUD Elements
-const hudDepth = document.getElementById("hud-depth-value");
-const hudStatus = document.getElementById("hud-status-text");
-const hudTotalLogs = document.getElementById("hud-total-logs");
-const hudShifter = document.getElementById("hud-shifter-count");
-const hudPassiveList = document.getElementById("hud-passive-list");
-const stabilizerIndicator = document.getElementById("stabilizer-indicator");
-
-const passiveModal = document.getElementById("passive-modal");
-const passiveChoices = document.getElementById("passive-choices");
-const modalPassiveList = document.getElementById("modal-passive-list-container");
-
-// 初期描画
-hudTotalLogs.textContent = totalLogsAllTime;
 
 function getCreatureType(index) {
     if (index <= 41) return "LAND"; if (index <= 57) return "WATER"; if (index <= 77) return "INSECT"; return "PLANT";
 }
 
-function addLog(text, type="") {
-    const div = document.createElement("div");
-    div.className = `log-line ${type}`;
-    const time = new Date().toTimeString().slice(0, 8);
-    div.innerHTML = `<span style="opacity:0.5">[${time}]</span> ${text}`;
-    mainLogWin.appendChild(div);
-    mainLogWin.scrollTop = mainLogWin.scrollHeight;
+function getObserverLogText() {
+    const localTime = new Date();
+    const jstString = localTime.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    const jstDate = new Date(jstString);
+    const hours = jstDate.getHours();
+    const minutes = jstDate.getMinutes();
+    const cycleMin = (hours % 4) * 60 + minutes;
+
+    if (cycleMin == 0) return "？？は戻りのゴンドラに乗った";
+    if (cycleMin == 7) return "？？は満足して動物園から出た";
+    if (cycleMin == 20) return "？？は駅に着いた";
+    if (cycleMin == 27) return "？？は電車に乗った";
+    if (cycleMin == 32) return "？？は電車を降りた";
+    if (cycleMin == 41) return "？？は電車に乗り込んだ"; 
+    if (cycleMin == 43) return "？？は何か食べたいなと思った";
+    if (cycleMin == 46) return "？？は電車を降りた";
+    if (cycleMin == 49) return "？？は駅を出た";
+    if (cycleMin == 50) return "？？は左手の信号を渡った";
+    if (cycleMin == 53) return "？？は五叉路を直角に右に曲がった";
+    if (cycleMin == 56) return "？？は交差点を左に曲がった";
+    if (cycleMin == 57) return "？？は右手に曲がった";
+    if (cycleMin == 58) return "？？はパンケーキの匂いにつられて店に入った";
+    if (cycleMin == 60) return "？？はテラス席に座った";
+    if (cycleMin == 90) return "？？は動物園に行きたいと思いだした";
+    if (cycleMin == 120) return "？？はお店を後にした";
+    if (cycleMin == 143) return "？？は近くの動物園に来た";
+    if (cycleMin == 145) return "？？は動物園に入園した";
+    if (cycleMin == 147) return "？？はゾウを見ている";
+    if (cycleMin == 150) return "？？はオランウータンを見に行った";
+    if (cycleMin == 153) return "？？はカワウソを愛でている";
+    if (cycleMin == 155) return "？？は階段に「？」を見つけた";
+    if (cycleMin == 157) return "？？はガラス越しに亀を見ている";
+    if (cycleMin == 160) return "？？はサイチョウを見ている";
+    if (cycleMin == 163) return "？？はマレーグマを上から見ている";
+    if (cycleMin == 165) return "？？は休憩所で休んでいる";
+    if (cycleMin == 168) return "？？はライ Lion を見ている";
+    if (cycleMin == 171) return "？？はフクロウを見ている";
+    if (cycleMin == 173) return "？？は爬虫類を見ている";
+    if (cycleMin == 175) return "？？は首元がふさふさな鳥を見ている";
+    if (cycleMin == 177) return "？？はカンガルーを見ている";
+    if (cycleMin == 182) return "？？はヤギを見ている";
+    if (cycleMin == 184) return "？？はお土産ショップを見つけた";
+    if (cycleMin == 186) return "？？はソフトクリームを食べている";
+    if (cycleMin == 195) return "？？はクレーンゲームをしている";
+    if (cycleMin == 200) return "？？は観覧車の横を通り過ぎた";
+    if (cycleMin == 202) return "？？はヤマネコを見ている";
+    if (cycleMin == 205) return "？？はカバを見ている";
+    if (cycleMin == 210) return "？？はゴンドラに乗った";
+    if (cycleMin == 222) return "？？は温室に入った";
+    if (cycleMin == 230) return "？？はトウカエデ近くのベンチに座った";
+    return "？？の行動を見通せなかった。。。"
 }
 
-// パッシブ表示更新
-function updatePassiveDisplay() {
-    hudPassiveList.innerHTML = "";
-    modalPassiveList.innerHTML = "";
-    let hasPassive = false;
+// ================================================================
+// 3. グローバル変数群
+// ================================================================
+let activePatches = []; 
+let pendingPatch = null; 
+let playerStats = { maxHp: 100, hp: 100, atk: 10, spd: 10, critRate: 5, critDmg: 1.5 };
+let inventory = { shifter: 0 };
+let totalLogsAllTime = 0; 
+let enemyLevel = 1;
 
-    for (let key in activePassives) {
-        if (activePassives[key].level > 0) {
-            hasPassive = true;
-            const pData = passiveDatabase.find(p => p.id === key);
-            
-            // HUD用バッジ
-            const hudBadge = document.createElement("div");
-            hudBadge.className = "hud-passive-badge";
-            
-            let dots = "";
-            for(let i=0; i<activePassives[key].durability; i++) dots += `<span class="dot"></span>`;
-            
-            hudBadge.innerHTML = `<span>${pData.name} Lv${activePassives[key].level}</span><div class="durability-dots">${dots}</div>`;
-            hudPassiveList.appendChild(hudBadge);
+let dreamCounter = 0;
+let isSettling = false;
+let isPaused = false;
+let isBattling = false;
+let activeWindows = {};
+let log_corrector = [];
+let mainLoopTimer = null;
+let totalDepthChanges = 0; 
+let enemyStats = { hp: 100, maxHp: 100, atk: 15, spd: 12 };
+let isPlayerTurn = true; 
 
-            // モーダル用バッジ
-            const modalBadge = document.createElement("span");
-            modalBadge.className = "modal-badge";
-            modalBadge.textContent = `${pData.name} Lv${activePassives[key].level}`;
-            modalPassiveList.appendChild(modalBadge);
+// ================================================================
+// 4. ハッキングカード システム
+// ================================================================
+let hackBuffs = { logSpeedMod: 1.0, enemyHpMod: 1.0, enemyAtkMod: 1.0, achieveMod: 1.0, windowAdd: 0, windowMult: 1.0, patchBoost: 1.0, critAdd: 0 };
+
+const hackingCards = {
+    Normal: [
+        { id: "N_LOG", name: "処理最適化", desc: "ログ生成速度 x1.2", apply: () => hackBuffs.logSpeedMod = 1.2 },
+        { id: "N_PATCH", name: "外部データ取得", desc: "ランダムなパッチを1つ即時取得する", immediate: true, apply: () => giveRandomPatch() },
+        { id: "N_WEAK", name: "ウイルス散布", desc: "敵の最大HP -10%", apply: () => hackBuffs.enemyHpMod = 0.9 }
+    ],
+    Bronze: [
+        { id: "B_LOG", name: "オーバークロック", desc: "ログ生成速度 x1.5", apply: () => hackBuffs.logSpeedMod = 1.5 },
+        { id: "B_ACHIEVE", name: "ログ解析強化", desc: "アチーブメント取得率 x1.5", apply: () => hackBuffs.achieveMod = 1.5 },
+        { id: "B_WEAK", name: "攻撃ジャミング", desc: "敵の攻撃力 -15%", apply: () => hackBuffs.enemyAtkMod = 0.85 }
+    ],
+    Silver: [
+        { id: "S_WIN", name: "マルチタスク", desc: "夢ウィンドウ最大数 +1", apply: () => hackBuffs.windowAdd = 1 },
+        { id: "S_PATCH_BOOST", name: "パッチ最適化", desc: "パッチのステータス上昇量 x1.5", apply: () => hackBuffs.patchBoost = 1.5 },
+        { id: "S_CRIT", name: "弱点解析", desc: "クリティカル率 +15%", apply: () => hackBuffs.critAdd = 15 }
+    ],
+    Gold: [
+        { id: "G_LOG", name: "量子演算", desc: "ログ生成速度 x2.5", apply: () => hackBuffs.logSpeedMod = 2.5 },
+        { id: "G_WIN", name: "並列処理限界突破", desc: "夢ウィンドウ最大数 +2", apply: () => hackBuffs.windowAdd = 2 },
+        { id: "G_ACHIEVE", name: "深層データ発掘", desc: "アチーブメント取得率 x3", apply: () => hackBuffs.achieveMod = 3 }
+    ],
+    Platinum: [
+        { id: "P_WIN", name: "無限の夢", desc: "夢ウィンドウ最大数 x3", apply: () => hackBuffs.windowMult = 3 },
+        { id: "P_ACHIEVE", name: "アカシックレコード", desc: "アチーブメント取得率 x10", apply: () => hackBuffs.achieveMod = 10 },
+        { id: "P_WEAK", name: "システム掌握", desc: "敵のHPと攻撃力 -50%", apply: () => { hackBuffs.enemyHpMod = 0.5; hackBuffs.enemyAtkMod = 0.5; } }
+    ]
+};
+
+const hackingThresholds = [
+    { log: 0, rank: "Normal" }, { log: 200, rank: "Bronze" }, { log: 500, rank: "Silver" },
+    { log: 1000, rank: "Silver" }, { log: 2500, rank: "Gold" }, { log: 5000, rank: "Gold" }, { log: 10000, rank: "Platinum" }
+];
+
+let currentHackingIndex = 0;
+let activeHackingCardId = null;
+
+function resetHackingBuffs() {
+    hackBuffs = { logSpeedMod: 1.0, enemyHpMod: 1.0, enemyAtkMod: 1.0, achieveMod: 1.0, windowAdd: 0, windowMult: 1.0, patchBoost: 1.0, critAdd: 0 };
+    document.getElementById("active-hack-display").style.display = "none";
+}
+
+function restoreHackingBuff() {
+    resetHackingBuffs();
+    if (activeHackingCardId) {
+        let foundCard = null;
+        Object.values(hackingCards).flat().forEach(c => { if (c.id === activeHackingCardId) foundCard = c; });
+        if (foundCard) {
+            if (!foundCard.immediate) {
+                foundCard.apply();
+            }
+            const hud = document.getElementById("active-hack-display");
+            hud.style.display = "flex";
+            document.getElementById("hud-hack-name").textContent = foundCard.name;
         }
     }
-    
-    if(!hasPassive) {
-        hudPassiveList.innerHTML = `<div style="font-size:10px; color:#999;">NONE</div>`;
-        modalPassiveList.innerHTML = `<div style="font-size:10px; color:#999;">NONE</div>`;
+}
+
+let hackQueue = [];
+function checkHackingEvent() {
+    while (currentHackingIndex < hackingThresholds.length && totalLogsAllTime >= hackingThresholds[currentHackingIndex].log) {
+        hackQueue.push(hackingThresholds[currentHackingIndex].rank);
+        currentHackingIndex++;
+        localStorage.setItem("squirrel_hacking_index", currentHackingIndex);
+    }
+    processHackingQueue();
+}
+
+function processHackingQueue() {
+    if (!isPaused && hackQueue.length > 0) {
+        const rank = hackQueue.shift();
+        triggerHackingEvent(rank);
     }
 }
 
-// ズームアウト演出
+function triggerHackingEvent(rank) {
+    isPaused = true;
+    clearInterval(mainLoopTimer);
+    addLog(`SYSTEM: 規定データ量到達。ハッキングプロトコル[${rank}]を開始。`, "hack");
+    
+    const pool = [...hackingCards[rank]].sort(() => 0.5 - Math.random());
+    const choices = pool.slice(0, 3);
+    const hackingChoicesContainer = document.getElementById("hacking-choices");
+    hackingChoicesContainer.innerHTML = "";
+    
+    choices.forEach(c => {
+        const div = document.createElement("div"); div.className = `hack-card rank-${rank}`;
+        div.innerHTML = `<div class="h-rank">${rank.toUpperCase()}</div><div class="h-name">${c.name}</div><div class="h-desc">${c.desc}</div>`;
+        div.onclick = () => selectHackingCard(c);
+        hackingChoicesContainer.appendChild(div);
+    });
+    document.getElementById("hacking-modal").style.display = "flex";
+}
+
+function selectHackingCard(card) {
+    addLog(`Hack Installed: ${card.name}`, "hack");
+    resetHackingBuffs();
+    
+    // 即時発動カードの場合は「アクティブな永続バフ」としてIDを記憶させないようにする
+    if (!card.immediate) {
+        activeHackingCardId = card.id;
+        localStorage.setItem("squirrel_active_hack", activeHackingCardId);
+        document.getElementById("active-hack-display").style.display = "flex";
+        document.getElementById("hud-hack-name").textContent = card.name;
+    } else {
+        // もし即時バフを選んだ場合はバフ表示を消し、記憶からも消す
+        activeHackingCardId = null;
+        localStorage.removeItem("squirrel_active_hack");
+    }
+    
+    card.apply(); 
+    
+    calculateStats();
+    reapplyWindowTimers(); 
+    manageDreamWindows(); 
+    
+    document.getElementById("hacking-modal").style.display = "none";
+    isPaused = false;
+    
+    if (hackQueue.length > 0) processHackingQueue();
+    else if (!isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+}
+
+function giveRandomPatch() {
+    const p = patchDatabase[Math.floor(Math.random() * patchDatabase.length)];
+    if(activePatches.length >= 5) {
+        pendingPatch = p; isPaused = true; showReplaceModal();
+    } else {
+        activePatches.push(p); addLog(`Hack Bonus: パッチ [${p.name}] を獲得した！`, "system");
+        calculateStats(); // ここでパッチが保存される
+    }
+}
+
+function reapplyWindowTimers() {
+    Object.keys(activeWindows).forEach(k => {
+        const w = activeWindows[k]; clearInterval(w.timer);
+        let speed = (2000 + Math.random()*2000) / hackBuffs.logSpeedMod;
+        w.timer = setInterval(()=>{ generateSubLog(k); }, speed);
+    });
+}
+
+// ================================================================
+// 5. セーブ・ロード・サイクル管理 (パッチ保存機能追加)
+// ================================================================
+function getCurrentCycleId() {
+    const jstDate = new Date(new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }));
+    jstDate.setMinutes(jstDate.getMinutes() - 35);
+    return `${jstDate.getFullYear()}-${jstDate.getMonth()}-${jstDate.getDate()}-${Math.floor(jstDate.getHours() / 4)}`;
+}
+
+let currentCycleId = getCurrentCycleId();
+
+if (localStorage.getItem("squirrel_cycle_id") !== currentCycleId) {
+    localStorage.removeItem("squirrel_total_logs");
+    localStorage.removeItem("squirrel_progress");
+    localStorage.removeItem("squirrel_achievements");
+    localStorage.removeItem("squirrel_enemy_level");
+    localStorage.removeItem("squirrel_hacking_index");
+    localStorage.removeItem("squirrel_active_hack");
+    localStorage.removeItem("squirrel_active_patches"); 
+    localStorage.setItem("squirrel_cycle_id", currentCycleId);
+}
+
+function loadSavedData() {
+    if (localStorage.getItem("squirrel_total_logs")) totalLogsAllTime = parseInt(localStorage.getItem("squirrel_total_logs"), 10);
+    if (localStorage.getItem("squirrel_enemy_level")) enemyLevel = parseInt(localStorage.getItem("squirrel_enemy_level"), 10);
+    if (localStorage.getItem("squirrel_hacking_index")) currentHackingIndex = parseInt(localStorage.getItem("squirrel_hacking_index"), 10);
+    activeHackingCardId = localStorage.getItem("squirrel_active_hack") || null;
+    
+    const savedPatches = localStorage.getItem("squirrel_active_patches");
+    if (savedPatches) {
+        const ids = JSON.parse(savedPatches);
+        activePatches = ids.map(id => patchDatabase.find(p => p.id === id)).filter(Boolean);
+    }
+}
+loadSavedData();
+restoreHackingBuff();
+
+function checkCycleReset() {
+    const newId = getCurrentCycleId();
+    if (currentCycleId !== newId) {
+        currentCycleId = newId; localStorage.setItem("squirrel_cycle_id", currentCycleId);
+        totalLogsAllTime = 0; enemyLevel = 1; currentHackingIndex = 0; activeHackingCardId = null; activePatches = [];
+        achievementProgress = { extinctionCount: 0, huntTiger: false, huntLion: false, jumpRabbit: false, jumpFrog: false, jumpKangaroo: false, tongueGiraffe: false, tongueBear: false };
+        unlockedAchievements.clear();
+        
+        saveProgress();
+        localStorage.setItem("squirrel_total_logs", totalLogsAllTime);
+        localStorage.setItem("squirrel_enemy_level", enemyLevel);
+        localStorage.setItem("squirrel_hacking_index", currentHackingIndex);
+        localStorage.removeItem("squirrel_active_hack");
+        localStorage.removeItem("squirrel_active_patches");
+        document.getElementById("hud-total-logs").textContent = totalLogsAllTime;
+        
+        restoreHackingBuff(); calculateStats(); 
+        addLog("【SYSTEM】サイクルが更新されました。総ログ・ハッキング・パッチ・実績等が初期化されました。", "system");
+        checkHackingEvent();
+    }
+}
+
+// ================================================================
+// 6. UI制御・ステータス計算
+// ================================================================
+document.getElementById("hud-total-logs").textContent = totalLogsAllTime;
+
+function addLog(text, type="") {
+    const div = document.createElement("div"); div.className = `log-line ${type}`;
+    const localTime = new Date(); const jstString = localTime.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    const timeStr = new Date(jstString).toTimeString().slice(0, 8);
+    div.innerHTML = `<span style="opacity:0.5">[${timeStr}]</span> ${text}`;
+    mainLogWin.appendChild(div); mainLogWin.scrollTop = mainLogWin.scrollHeight;
+}
+
+function calculateStats() {
+    const patchIds = activePatches.map(p => p.id);
+    localStorage.setItem("squirrel_active_patches", JSON.stringify(patchIds));
+
+    let oldMaxHp = playerStats.maxHp || 100;
+    let baseAtk = Math.max(10, Math.floor(totalLogsAllTime * 0.1));
+    let currentHp = playerStats.hp;
+
+    playerStats = { maxHp: 100, hp: currentHp, atk: baseAtk, spd: 10, critRate: 5, critDmg: 1.5 };
+
+    let attrCount = { "陸": 0, "海": 0, "虫": 0, "草": 0 };
+    let activeSets = [];
+
+    activePatches.forEach(patch => { attrCount[patch.attr]++; patch.apply(playerStats, hackBuffs.patchBoost); });
+
+    if (attrCount["陸"] >= 2) { playerStats.critDmg += 0.5; activeSets.push({t: "陸2", css: "land", d: "C.DMG+0.5x"}); }
+    if (attrCount["陸"] >= 3) { playerStats.critDmg += 1.0; activeSets.push({t: "陸3", css: "land", d: "C.DMG+1.0x"}); }
+    if (attrCount["海"] >= 2) { playerStats.spd += 20; activeSets.push({t: "海2", css: "sea", d: "SPD+20"}); }
+    if (attrCount["海"] >= 3) { playerStats.spd += 30; activeSets.push({t: "海3", css: "sea", d: "SPD+30(2行動)"}); }
+    if (attrCount["虫"] >= 2) { playerStats.critRate += 20; activeSets.push({t: "虫2", css: "insect", d: "CRIT+20%"}); }
+    if (attrCount["虫"] >= 3) { playerStats.critRate += 30; activeSets.push({t: "虫3", css: "insect", d: "CRIT+30%"}); }
+    if (attrCount["草"] >= 2) { playerStats.maxHp += 100; activeSets.push({t: "草2", css: "plant", d: "HP+100"}); }
+    if (attrCount["草"] >= 3) { playerStats.maxHp += 200; activeSets.push({t: "草3", css: "plant", d: "HP+200(回復)"}); }
+
+    playerStats.critRate += hackBuffs.critAdd;
+
+    let hpDiff = playerStats.maxHp - oldMaxHp;
+    if (hpDiff > 0) playerStats.hp += hpDiff;
+    if (playerStats.hp > playerStats.maxHp) playerStats.hp = playerStats.maxHp;
+
+    updateStatsUI(activeSets);
+}
+
+function updateStatsUI(activeSets) {
+    document.getElementById("stat-atk").textContent = playerStats.atk;
+    document.getElementById("stat-hp").textContent = `${Math.floor(Math.max(0, playerStats.hp))}/${playerStats.maxHp}`;
+    document.getElementById("stat-spd").textContent = playerStats.spd;
+    document.getElementById("stat-crit").textContent = playerStats.critRate;
+    document.getElementById("stat-critdmg").textContent = playerStats.critDmg.toFixed(1);
+    
+    document.getElementById("slot-count").textContent = activePatches.length;
+    const slotsUI = document.getElementById("patch-slots-ui"); slotsUI.innerHTML = "";
+    for(let i=0; i<5; i++) {
+        const slot = document.createElement("div");
+        if(i < activePatches.length) { slot.className = `patch-slot`; slot.textContent = activePatches[i].icon; slot.title = `${activePatches[i].name}\n${activePatches[i].desc}`; } 
+        else { slot.className = "patch-slot empty"; slot.textContent = i + 1; }
+        slotsUI.appendChild(slot);
+    }
+
+    const tagsUI = document.getElementById("set-effect-tags"); tagsUI.innerHTML = "";
+    if (activeSets.length === 0) tagsUI.innerHTML = '<span style="font-size:9px; color:#999;">NO SET EFFECT</span>';
+    else { activeSets.forEach(set => { const tag = document.createElement("span"); tag.className = `set-tag ${set.css}`; tag.textContent = `[${set.t}] ${set.d}`; tagsUI.appendChild(tag); }); }
+}
+
+// ================================================================
+// ランダムイベントシステム (覚醒中)
+// ================================================================
+function triggerRandomEvent() {
+    isPaused = true; clearInterval(mainLoopTimer);
+    const r = Math.random();
+    if (r < 0.25) showEventModal("EVENT_OLDMAN"); else if (r < 0.50) showEventModal("EVENT_MACHINE"); else if (r < 0.75) showEventModal("EVENT_MASK"); else showEventModal("EVENT_GIFT_PLACEHOLDER");
+}
+
+function showEventModal(type) {
+    const modal = document.getElementById("event-modal"); const title = document.getElementById("event-title"); const desc = document.getElementById("event-desc"); const choices = document.getElementById("event-choices");
+    choices.innerHTML = ""; modal.style.display = "flex";
+
+    if (type === "EVENT_OLDMAN") {
+        title.textContent = "老人の幻影"; title.style.color = "#ffeb3b";
+        desc.innerHTML = "「フォッフォッフォ…迷い子よ。ワシと一つ、運試しをせんか？<br>このコイン、表か裏か…当ててみせよ」";
+        const btnHead = document.createElement("button"); btnHead.className="event-btn"; btnHead.textContent="表 (HEAD)"; btnHead.onclick=()=>resolveOldman(true);
+        const btnTail = document.createElement("button"); btnTail.className="event-btn"; btnTail.textContent="裏 (TAIL)"; btnTail.onclick=()=>resolveOldman(false);
+        choices.appendChild(btnHead); choices.appendChild(btnTail);
+    } else if (type === "EVENT_MACHINE") {
+        title.textContent = "電子の亡霊"; title.style.color = "#0ff";
+        desc.innerHTML = "『ピィィ…ガガ…』<br>言葉を発しないノイズの塊が、あなたに向けて一本の指を差し出している。";
+        const btnTouch = document.createElement("button"); btnTouch.className="event-btn"; btnTouch.textContent="触らせる"; btnTouch.onclick=()=>resolveMachine(true);
+        const btnRun = document.createElement("button"); btnRun.className="event-btn"; btnRun.textContent="振り切る"; btnRun.onclick=()=>resolveMachine(false);
+        choices.appendChild(btnTouch); choices.appendChild(btnRun);
+    } else if (type === "EVENT_MASK") {
+        title.textContent = "浮遊する仮面"; title.style.color = "#e91e63";
+        desc.innerHTML = "「おっ、にーちゃんええトコにおるやん！<br>ちょっとウチのオモロイ遊び、付き合ぉてや！」<br><br>仮面が笑うと同時に、空間が大きく歪み始めた！";
+        const btnNext = document.createElement("button"); btnNext.className="event-btn"; btnNext.textContent="巻き込まれる"; btnNext.onclick=()=>resolveMask();
+        choices.appendChild(btnNext);
+    } else if (type === "EVENT_GIFT_PLACEHOLDER") {
+        title.textContent = "神秘的なシルエット"; title.style.color = "#4caf50";
+        desc.innerHTML = "光り輝く生物のシルエットが、あなたを静かに見つめている。<br>何かを託そうとしているようだ…<br><br><span style='color:#aaa; font-size:10px;'>※今後のアップデートで「ギフト」が実装される予定です</span>";
+        const btnAccept = document.createElement("button"); btnAccept.className="event-btn"; btnAccept.textContent="受け取る (未実装)"; 
+        btnAccept.onclick = () => { addLog("神秘的なシルエットから、何かを受け取った気がした…", "system"); closeEventModal(); };
+        choices.appendChild(btnAccept);
+    }
+}
+
+function closeEventModal() {
+    document.getElementById("event-modal").style.display = "none"; isPaused = false; processHackingQueue();
+    if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+}
+
+function updateLogCountUI() {
+    localStorage.setItem("squirrel_total_logs", totalLogsAllTime); document.getElementById("hud-total-logs").textContent = totalLogsAllTime;
+    calculateStats(); checkHackingEvent(); 
+}
+
+function resolveOldman(choiceIsHead) {
+    const isHead = Math.random() < 0.5; const desc = document.getElementById("event-desc"); const choices = document.getElementById("event-choices"); choices.innerHTML = "";
+    const btnClose = document.createElement("button"); btnClose.className="event-btn"; btnClose.textContent="立ち去る"; btnClose.onclick=closeEventModal; choices.appendChild(btnClose);
+    if (choiceIsHead === isHead) {
+        desc.innerHTML = `「ほう…見事じゃ。持って行くがよい」<br><br><span style="color:#0f0;">運試しに勝利した！ ログ総数が 50 増加した！</span>`;
+        totalLogsAllTime += 50; addLog("老人の運試しに勝利し、50ログを獲得した", "system");
+    } else {
+        const lost = Math.floor(totalLogsAllTime / 2); desc.innerHTML = `「残念じゃったな…対価は頂いていくぞ」<br><br><span style="color:#f55;">運試しに敗北した… ログ総数を ${lost} 失った…</span>`;
+        totalLogsAllTime -= lost; addLog(`老人の運試しに敗北し、${lost}ログを失った`, "chaos");
+    }
+    updateLogCountUI();
+}
+
+function resolveMachine(isTouch) {
+    const desc = document.getElementById("event-desc"); const choices = document.getElementById("event-choices"); choices.innerHTML = "";
+    const btnClose = document.createElement("button"); btnClose.className="event-btn"; btnClose.textContent="立ち去る"; btnClose.onclick=closeEventModal; choices.appendChild(btnClose);
+    if (isTouch) {
+        desc.innerHTML = `指が触れた瞬間、膨大なデータが脳内に流れ込んできた！<br><br><span style="color:#0f0;">ログ総数が倍になった！</span>`;
+        addLog(`電子の亡霊と接触し、ログ総数が倍増した`, "system"); totalLogsAllTime *= 2;
+    } else { desc.innerHTML = `あなたは不気味に思い、その場から急いで立ち去った。`; addLog("電子の亡霊を振り切った", "neutral"); }
+    updateLogCountUI();
+}
+
+function resolveMask() {
+    document.getElementById("event-modal").style.display = "none";
+    const targetDepth = Math.random() < 0.5 ? 14 : -14; addLog(`「ほな、またな！」 仮面の力で深度が強制的に ${targetDepth} にされた！`, "chaos");
+    dreamCounter = targetDepth; updateVisualState(); manageDreamWindows(); 
+    isPaused = false; processHackingQueue(); if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+}
+
+// ================================================================
+// オートバトルシステム
+// ================================================================
+function startBattle() {
+    isBattling = true; isPaused = true; clearInterval(mainLoopTimer); 
+    enemyStats.maxHp = Math.floor(100 * Math.pow(1.2, enemyLevel - 1) * hackBuffs.enemyHpMod); enemyStats.hp = enemyStats.maxHp;
+    enemyStats.atk = Math.floor(15 * Math.pow(1.15, enemyLevel - 1) * hackBuffs.enemyAtkMod); enemyStats.spd = 10 + enemyLevel * 2;
+
+    document.getElementById("b-enemy-name").textContent = `NIGHTMARE Lv.${enemyLevel}`; document.getElementById("battle-log").innerHTML = ""; document.getElementById("battle-commands").style.display = "flex";
+    addBattleLog(`システムに異常を検知。Lv.${enemyLevel}のナイトメアが出現した！`, "#e91e63"); updateBattleUI(); document.getElementById("battle-modal").style.display = "flex";
+}
+
+function updateBattleUI() {
+    document.getElementById("b-player-hp-text").textContent = `HP: ${Math.floor(Math.max(0, playerStats.hp))} / ${playerStats.maxHp}`;
+    document.getElementById("b-player-hp-bar").style.width = `${(Math.max(0, playerStats.hp) / playerStats.maxHp) * 100}%`;
+    document.getElementById("b-enemy-hp-text").textContent = `HP: ${Math.floor(Math.max(0, enemyStats.hp))} / ${enemyStats.maxHp}`;
+    document.getElementById("b-enemy-hp-bar").style.width = `${(Math.max(0, enemyStats.hp) / enemyStats.maxHp) * 100}%`;
+    document.getElementById("stat-hp").textContent = `${Math.floor(Math.max(0, playerStats.hp))}/${playerStats.maxHp}`;
+}
+
+function addBattleLog(text, color="#fff") {
+    const logWin = document.getElementById("battle-log"); const div = document.createElement("div");
+    div.className = "b-log-line"; div.style.color = color; div.textContent = "> " + text;
+    logWin.appendChild(div); logWin.scrollTop = logWin.scrollHeight;
+}
+
+function battleAction(type) {
+    document.getElementById("battle-commands").style.display = "none"; 
+    if (type === 'attack') { addBattleLog("戦闘開始！オートで進行します...", "#0ff"); isPlayerTurn = playerStats.spd >= enemyStats.spd; setTimeout(processTurn, 800); } 
+    else if (type === 'flee') {
+        const fleeChance = Math.min(0.8, (playerStats.spd / enemyStats.spd) * 0.4);
+        if (Math.random() < fleeChance) { addBattleLog("逃走に成功した！", "#0f0"); setTimeout(endBattleFlee, 1500); } 
+        else { addBattleLog("逃走に失敗した...敵に捕捉された！", "#f55"); isPlayerTurn = false; setTimeout(processTurn, 800); }
+    }
+}
+
+function processTurn() {
+    if (playerStats.hp <= 0 || enemyStats.hp <= 0) return;
+    if (isPlayerTurn) playerAttack(); else enemyAttack();
+    isPlayerTurn = !isPlayerTurn; 
+    if (playerStats.hp <= 0 || enemyStats.hp <= 0) setTimeout(checkBattleEnd, 800); else setTimeout(processTurn, 800); 
+}
+
+function playerAttack() {
+    let dmg = playerStats.atk; let isCrit = Math.random() < (playerStats.critRate / 100);
+    if (isCrit) { dmg = Math.floor(dmg * playerStats.critDmg); addBattleLog(`プレイヤーの攻撃！ クリティカル！！ 敵に ${dmg} のダメージ！`, "#ff0"); } 
+    else addBattleLog(`プレイヤーの攻撃！ 敵に ${dmg} のダメージ！`);
+    enemyStats.hp -= dmg;
+    let plantCount = activePatches.filter(p => p.attr === "草").length;
+    if (plantCount >= 3) { let heal = Math.floor(playerStats.maxHp * 0.1); playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + heal); addBattleLog(`[草3セット効果] 体力が ${heal} 回復した！`, "#0f0"); }
+    updateBattleUI();
+}
+
+function enemyAttack() {
+    let dmg = Math.floor(enemyStats.atk * (0.8 + Math.random() * 0.4)); playerStats.hp -= dmg; addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
+    updateBattleUI();
+}
+
+function checkBattleEnd() {
+    if (playerStats.hp <= 0) { addBattleLog("プレイヤーは倒れた...", "#f00"); setTimeout(endBattleLose, 2000); } 
+    else if (enemyStats.hp <= 0) { addBattleLog("ナイトメアを撃破した！", "#0f0"); setTimeout(endBattleWin, 2000); }
+}
+
+function endBattleWin() {
+    document.getElementById("battle-modal").style.display = "none";
+    let rewardLogs = 50 * enemyLevel; log_corrector.push({ creature: "System(戦闘報酬)", count: rewardLogs, type: "SYSTEM" });
+    enemyLevel++; localStorage.setItem("squirrel_enemy_level", enemyLevel);
+    addLog(`BATTLE WIN: ナイトメア撃破。未精算ログを獲得。(次周 Enemy Lv.${enemyLevel})`, "system");
+    isBattling = false; addLog("SYSTEM: 敵性データからパッチの断片を抽出しました", "system"); showPassiveSelection();
+}
+
+function endBattleFlee() {
+    document.getElementById("battle-modal").style.display = "none"; addLog(`戦闘から離脱。安全のため深度をリセットします。`, "awaken");
+    if (activePatches.length > 0) {
+        const dropIndex = Math.floor(Math.random() * activePatches.length); const lostPatch = activePatches.splice(dropIndex, 1)[0];
+        addLog(`SYSTEM: 逃走の衝撃でパッチ [${lostPatch.name}] を1つロストした...`, "system"); calculateStats(); 
+    }
+    const oldCounter = dreamCounter; dreamCounter = 0; isBattling = false; isPaused = false;
+    updateVisualState(); handleZeroCrossing(oldCounter); processHackingQueue();
+    if(hackQueue.length===0) mainLoopTimer = setInterval(updateCounter, 2500);
+}
+
+function endBattleLose() {
+    document.getElementById("battle-modal").style.display = "none";
+    enemyLevel = Math.max(1, Math.floor(enemyLevel / 2) + 1); localStorage.setItem("squirrel_enemy_level", enemyLevel);
+    addLog(`SYSTEM CRASH: 戦闘敗北。全パッチと未精算ログをロスト... (次周 Enemy Lv.${enemyLevel}に低下)`, "chaos");
+    dreamCounter = 0; activePatches = []; calculateStats();
+    playerStats.hp = playerStats.maxHp; updateStatsUI([]); updateVisualState();
+    discardAllDreamWindows(); isBattling = false; isPaused = false; playFinishSound();
+    processHackingQueue(); if(hackQueue.length===0) mainLoopTimer = setInterval(updateCounter, 2500);
+}
+
+function discardAllDreamWindows() {
+    Object.keys(activeWindows).forEach(k => {
+        const w = activeWindows[k]; clearInterval(w.timer); w.el.style.transform = "scale(0)";
+        setTimeout(() => { if(w.el.parentNode) w.el.parentNode.removeChild(w.el); }, 300); delete activeWindows[k];
+    });
+    log_corrector = []; 
+}
+
+// ================================================================
+// パッチ獲得・入れ替えモーダル
+// ================================================================
+function showPassiveSelection() {
+    isPaused = true; passiveChoices.innerHTML = "";
+    const shuffled = [...patchDatabase].sort(() => 0.5 - Math.random()); const choices = shuffled.slice(0, 3);
+    choices.forEach(p => {
+        const div = document.createElement("div"); div.className = "passive-card";
+        div.innerHTML = `<div class="p-icon">${p.icon}</div><div class="p-attr ${p.css}">${p.attr}属性</div><div class="p-name">${p.name}</div><div class="p-desc">${p.desc}</div><button style="margin-top:auto;">INSTALL</button>`;
+        div.onclick = () => {
+            if(activePatches.length >= 5) { pendingPatch = p; showReplaceModal(); } 
+            else {
+                activePatches.push(p); addLog(`Patch Installed: ${p.name}`, "system");
+                calculateStats(); document.getElementById("passive-modal").style.display = "none"; isPaused = false;
+                processHackingQueue(); if(hackQueue.length===0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+            }
+        };
+        passiveChoices.appendChild(div);
+    });
+    document.getElementById("passive-modal").style.display = "flex";
+}
+
+function showReplaceModal() {
+    replaceChoices.innerHTML = "";
+    activePatches.forEach((p, index) => {
+        const div = document.createElement("div"); div.className = "passive-card"; div.style.borderColor = "#e91e63";
+        div.innerHTML = `<div class="p-icon">${p.icon}</div><div class="p-attr ${p.css}">${p.attr}属性</div><div class="p-name">${p.name}</div><div class="p-desc">${p.desc}</div><button style="margin-top:auto; background:#e91e63; color:#fff; border-color:#fff;">これを破棄</button>`;
+        div.onclick = () => {
+            addLog(`Patch Replaced: ${p.name} -> ${pendingPatch.name}`, "system");
+            activePatches[index] = pendingPatch; pendingPatch = null; calculateStats();
+            replaceModal.style.display = "none"; document.getElementById("passive-modal").style.display = "none"; isPaused = false;
+            processHackingQueue(); if(hackQueue.length===0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+        };
+        replaceChoices.appendChild(div);
+    });
+    replaceModal.style.display = "flex";
+}
+
+function cancelReplace() {
+    pendingPatch = null; replaceModal.style.display = "none";
+    if(document.getElementById("passive-modal").style.display !== "flex") {
+        isPaused = false; processHackingQueue(); if(hackQueue.length===0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+    }
+}
+
+// ズームアウト演出・画面更新
 function updateZoomOutEffect(depth) {
-    const scale = Math.max(0.4, 1 - (depth * 0.1)); 
-    container.style.transform = `scale(${scale})`;
-    outerLayers.innerHTML = "";
+    const scale = Math.max(0.4, 1 - (depth * 0.1)); container.style.transform = `scale(${scale})`; outerLayers.innerHTML = "";
     for (let i = depth; i >= 1; i--) {
-        const frame = document.createElement("div");
-        frame.className = "outer-frame";
-        const layerScale = 1 - ((i - 1) * 0.1);
-        frame.style.transform = `scale(${layerScale})`;
-        frame.style.borderColor = `rgba(0,0,0, ${1 - (i*0.1)})`;
-        frame.style.zIndex = -i; 
+        const frame = document.createElement("div"); frame.className = "outer-frame";
+        frame.style.transform = `scale(${1 - ((i - 1) * 0.1)})`; frame.style.borderColor = `rgba(0,0,0, ${1 - (i*0.1)})`; frame.style.zIndex = -i; 
         frame.innerHTML = `<div style="padding:10px; color:#000; font-size:10px; font-weight:bold;">>> RECURSION DEPTH -${i} <<</div>`;
         outerLayers.appendChild(frame);
     }
 }
 
-// 画面状態更新（即時反映用）
 function updateVisualState() {
-    hudDepth.textContent = dreamCounter;
-    hudDepth.className = "hud-value depth";
-    if(dreamCounter > 0) hudDepth.classList.add("dream");
-    if(dreamCounter < 0) hudDepth.classList.add("wake");
+    const hudDepth = document.getElementById("hud-depth-value"); const hudStatus = document.getElementById("hud-status-text");
+    hudDepth.textContent = dreamCounter; hudDepth.className = "hud-value depth";
+    if(dreamCounter > 0) hudDepth.classList.add("dream"); if(dreamCounter < 0) hudDepth.classList.add("wake");
 
-    // Stabilized Indicator
-    if(isStabilized) {
-        stabilizerIndicator.style.display = "block";
-    } else {
-        stabilizerIndicator.style.display = "none";
-    }
-
-    if (dreamCounter > 0) {
-        hudStatus.textContent = "DREAMING";
-        hudStatus.style.color = "#e91e63";
-        container.style.transform = "scale(1)";
-        outerLayers.innerHTML = "";
-    } else if (dreamCounter < 0) {
-        hudStatus.textContent = "AWAKENING";
-        hudStatus.style.color = "#0056b3";
-        updateZoomOutEffect(Math.abs(dreamCounter));
-    } else {
-        hudStatus.textContent = "NEUTRAL";
-        hudStatus.style.color = "#555";
-        container.style.transform = "scale(1)";
-        outerLayers.innerHTML = "";
-    }
+    if (dreamCounter > 0) { hudStatus.textContent = "DREAMING"; hudStatus.style.color = "#e91e63"; container.style.transform = "scale(1)"; outerLayers.innerHTML = ""; } 
+    else if (dreamCounter < 0) { hudStatus.textContent = "AWAKENING"; hudStatus.style.color = "#0056b3"; updateZoomOutEffect(Math.abs(dreamCounter)); } 
+    else { hudStatus.textContent = "NEUTRAL"; hudStatus.style.color = "#555"; container.style.transform = "scale(1)"; outerLayers.innerHTML = ""; }
 }
 
-// パッシブ選択画面
-function showPassiveSelection(level) {
-    isPaused = true;
-    updatePassiveDisplay();
-    passiveChoices.innerHTML = "";
-    
-    const shuffled = [...passiveDatabase].sort(() => 0.5 - Math.random());
-    const choices = shuffled.slice(0, 3);
-    
-    let allOwned = true;
-    choices.forEach(p => { if (activePassives[p.id].level < level) allOwned = false; });
-
-    choices.forEach(p => {
-        const isOwned = activePassives[p.id].level >= level;
-        const div = document.createElement("div");
-        div.className = `passive-card ${isOwned ? 'owned' : ''}`;
-        div.innerHTML = `<div class="p-icon">${p.icon}</div><div class="p-name">${p.name}</div><div class="p-desc">${p.desc[level-1]}</div><div class="p-level">LEVEL ${level}</div>`;
-        if (!isOwned) {
-            div.onclick = () => {
-                activePassives[p.id].level = level; activePassives[p.id].durability = 3;
-                addLog(`Patch Applied: ${p.name} Lv${level}`, "system");
-                updatePassiveDisplay(); passiveModal.style.display = "none"; isPaused = false;
-            };
-            passiveChoices.appendChild(div);
-        }
-    });
-
-    if (passiveChoices.childElementCount === 0 || allOwned) {
-        passiveChoices.innerHTML = "";
-        const div = document.createElement("div");
-        div.className = "passive-card";
-        div.style.borderColor = "#6ab0ff";
-        div.innerHTML = `<div class="p-icon">🧬</div><div class="p-name">Dream Shifter</div><div class="p-desc">Modify Dream Counter (+1/-1)<br>Consumable Item</div><div class="p-level" style="background:#6ab0ff;">ITEM</div>`;
-        div.onclick = () => {
-            inventory.shifter++; hudShifter.textContent = "x" + inventory.shifter;
-            addLog(`Item Acquired: Dream Shifter`, "system");
-            passiveModal.style.display = "none"; isPaused = false;
-        };
-        passiveChoices.appendChild(div);
-    }
-    passiveModal.style.display = "flex";
-}
-
-// ウィンドウ管理（即時実行用）
 function manageDreamWindows() {
-    if(dreamCounter <= 0) {
-        Object.keys(activeWindows).forEach(k => closeDreamWindow(k));
-        return;
-    }
-    
-    let extraWindows = 0;
-    if (activePassives.multithread.level === 1) extraWindows = 2;
-    if (activePassives.multithread.level === 2) extraWindows = 5;
-    if (activePassives.multithread.level === 3) extraWindows = 10;
-    const targetCount = dreamCounter + extraWindows;
+    if(dreamCounter <= 0) { Object.keys(activeWindows).forEach(k => closeDreamWindow(k)); return; }
+    const targetCount = Math.floor((dreamCounter + hackBuffs.windowAdd) * hackBuffs.windowMult);
     const currentCount = Object.keys(activeWindows).length;
     
-    if (currentCount < targetCount) {
-        for (let i = currentCount + 1; i <= targetCount; i++) openDreamWindow(i);
-    } else if (currentCount > targetCount) {
+    if (currentCount < targetCount) { for (let i = currentCount + 1; i <= targetCount; i++) openDreamWindow(i); } 
+    else if (currentCount > targetCount) {
          const keys = Object.keys(activeWindows).map(Number).sort((a,b)=>b-a);
          for(let i=0; i < currentCount - targetCount; i++) closeDreamWindow(keys[i]);
     }
 }
 
-// 0クロス処理（即時実行用）
 function handleZeroCrossing(oldCounter) {
-    if (oldCounter > 0) {
-        addLog("現実へ帰還。ログ精算...", "system");
-        // ウィンドウを強制クローズしてログ回収
-        Object.keys(activeWindows).forEach(k => closeDreamWindow(k));
-        // 即時精算実行
-        checkAchievements();
-    } else {
-        addLog("覚醒深度リセット。", "awaken");
-    }
+    if (oldCounter > 0) { addLog("現実へ帰還。ログ精算...", "system"); Object.keys(activeWindows).forEach(k => closeDreamWindow(k)); checkAchievements(); } 
+    else addLog("覚醒深度リセット。", "awaken");
 }
 
-// アイテム使用
 function openItemModal() {
-    if (inventory.shifter > 0 && !isPaused && !isSettling) {
-        isPaused = true;
-        document.getElementById("item-modal").style.display = "flex";
-    }
+    if (inventory.shifter > 0 && !isPaused && !isSettling && !isBattling) { isPaused = true; document.getElementById("item-modal").style.display = "flex"; }
 }
-function closeItemModal() {
-    document.getElementById("item-modal").style.display = "none";
-    isPaused = false;
-}
+function closeItemModal() { document.getElementById("item-modal").style.display = "none"; isPaused = false; }
 function useShifter(amount) {
     if (inventory.shifter > 0) {
-        inventory.shifter--;
-        hudShifter.textContent = "x" + inventory.shifter;
-        
-        const oldCounter = dreamCounter;
-        dreamCounter += amount;
-        addLog(`Dream Shifter used: Counter ${amount > 0 ? '+1' : '-1'}`, "system");
-        
-        closeItemModal();
-        
-        // ★重要: メインタイマーをリセットし、即時実行による競合を防ぐ
-        clearInterval(mainLoopTimer);
-        mainLoopTimer = setInterval(updateCounter, 2500);
-
-        // ★重要: 視覚状態を即時更新
+        inventory.shifter--; document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+        const oldCounter = dreamCounter; dreamCounter += amount; addLog(`Dream Shifter used: Counter ${amount > 0 ? '+1' : '-1'}`, "system");
+        closeItemModal(); clearInterval(mainLoopTimer); mainLoopTimer = setInterval(updateCounter, 2500);
         updateVisualState();
-        
-        // Stabilizerモード判定 (アイテムで10に行っても発動させる)
-        if (activePassives.stabilizer.level > 0 && dreamCounter >= 10 && !isStabilized) {
-            isStabilized = true;
-            addLog("STABILIZER: Return Mode Activated.", "system");
-            updateVisualState();
-        }
-
-        // ★重要: ロジックの即時実行
-        if (oldCounter !== 0 && dreamCounter === 0) {
-            handleZeroCrossing(oldCounter);
-        } else {
-            manageDreamWindows();
-        }
+        if (oldCounter !== 0 && dreamCounter === 0) handleZeroCrossing(oldCounter); else manageDreamWindows();
     }
 }
+
 
 // カウンター更新ループ（メイン）
 function updateCounter() {
-    if (isSettling || isPaused) return;
+    if (isSettling || isPaused || isBattling) return;
 
-    const oldCounter = dreamCounter;
-    let delta = 0;
+    checkCycleReset();
+    const oldCounter = dreamCounter; let delta = Math.floor(Math.random() * 3) - 1; dreamCounter += delta;
 
-    // Stabilizerロジック
-    if (activePassives.stabilizer.level > 0 && dreamCounter >= 10) {
-        if (!isStabilized) {
-            isStabilized = true;
-            addLog("STABILIZER: Return Mode Activated.", "system");
-        }
+    if (delta !== 0) {
+        totalDepthChanges += Math.abs(delta);
+        if (totalDepthChanges >= 30) { totalDepthChanges = 0; startBattle(); return; }
     }
 
-    // 確率計算
-    if (isStabilized) {
-        const lv = activePassives.stabilizer.level;
-        const r = Math.random();
-        if (lv === 1) {
-            if (r < 0.2) delta = 1; else if (r < 0.5) delta = 0; else delta = -1;
-        } else if (lv === 2) {
-            if (r < 0.1) delta = 1; else if (r < 0.4) delta = 0; else delta = -1;
-        } else {
-            if (r < 0.2) delta = 0; else delta = -1;
-        }
-    } else {
-        delta = Math.floor(Math.random() * 3) - 1; 
+    if (dreamCounter < 0 && delta !== 0 && !isBattling && !isPaused) {
+        if (Math.random() < 0.05) { triggerRandomEvent(); return; }
     }
 
-    dreamCounter += delta;
-
-    // パッシブ獲得
-    if (dreamCounter === -3 && oldCounter !== -3) showPassiveSelection(1);
-    else if (dreamCounter === -8 && oldCounter !== -8) showPassiveSelection(2);
-    else if (dreamCounter === -13 && oldCounter !== -13) showPassiveSelection(3);
-
-    // クラッシュ
+    let isCrashed = false; 
     if (dreamCounter >= 15 || dreamCounter <= -15) {
-        dreamCounter = 0;
-        isStabilized = false;
-        for(let k in activePassives) { activePassives[k].level=0; activePassives[k].durability=0; }
-        updatePassiveDisplay();
-        addLog("SYSTEM CRASH: Resetting...", "chaos");
-        playFinishSound();
+        isCrashed = true; dreamCounter = 0; activePatches = []; 
+        enemyLevel = Math.max(1, Math.floor(enemyLevel / 2) + 1); localStorage.setItem("squirrel_enemy_level", enemyLevel);
+        calculateStats(); addLog(`CRASH: 限界深度突破。全パッチと未精算ログをロスト... (次周 Enemy Lv.${enemyLevel}に低下)`, "chaos"); playFinishSound();
+        discardAllDreamWindows(); 
     }
 
-    // 更新処理を共通化
     updateVisualState();
-
-    if (oldCounter !== 0 && dreamCounter === 0) {
-        handleZeroCrossing(oldCounter);
-    } else {
-        manageDreamWindows();
-    }
+    if (!isCrashed) { if (oldCounter !== 0 && dreamCounter === 0) handleZeroCrossing(oldCounter); else manageDreamWindows(); }
     
-    if (Math.random() > 0.6 && !isPaused && dreamCounter !== 0) {
-        if (dreamCounter < 0) addLog(`System: ${logsSystem[Math.floor(Math.random()*logsSystem.length)]}`, "awaken");
+    if (Math.random() > 0.6 && !isPaused && !isBattling && !isCrashed) {
+        if (dreamCounter < 0) {
+            if (Math.random() < 0.2) {
+                addLog(`Observer: ${getObserverLogText()}`, "awaken");
+            } else {
+                addLog(`System: ${logsAwaken[Math.floor(Math.random() * logsAwaken.length)]}`, "awaken");
+            }
+        } else if (dreamCounter === 0) {
+            addLog(`System: ${logsNeutral[Math.floor(Math.random() * logsNeutral.length)]}`, "neutral");
+        }
     }
 }
 
 // 夢ウィンドウ
 function openDreamWindow(depth) {
     if (activeWindows[depth]) return;
-    let cName, idx;
-    const lvl = activePassives.targeting.level;
-    if (lvl > 0) {
-        let chance = (lvl === 1) ? 0.5 : (lvl === 2) ? 0.8 : 1.0;
-        if (Math.random() < chance) {
-            cName = targetCreatures[Math.floor(Math.random() * targetCreatures.length)];
-            idx = logsCreature.indexOf(cName);
-        } else {
-            idx = Math.floor(Math.random()*logsCreature.length);
-            cName = logsCreature[idx];
-        }
-    } else {
-        idx = Math.floor(Math.random()*logsCreature.length);
-        cName = logsCreature[idx];
-    }
-    const type = getCreatureType(idx);
-
-    const div = document.createElement("div");
-    div.className = "sub-window dream-active";
-    div.id = `win-${depth}`;
+    let idx = Math.floor(Math.random()*logsCreature.length); let cName = logsCreature[idx]; const type = getCreatureType(idx);
+    const div = document.createElement("div"); div.className = "sub-window dream-active"; div.id = `win-${depth}`;
     div.innerHTML = `<div class="sub-header"><span>#${depth}: ${cName}</span><span id="cnt-${depth}">0</span></div><div class="sub-log-area" id="log-area-${depth}"></div>`;
     dreamArea.appendChild(div);
     
     activeWindows[depth] = { el: div, creature: cName, type: type, idx: idx, count: 0, timer: null, state: "NORMAL", stateTimer: 0 };
     
-    let speed = 2000 + Math.random()*2000;
-    const oLvl = activePassives.overclock.level;
-    if (oLvl === 1) speed /= 1.5; if (oLvl === 2) speed /= 3.0; if (oLvl === 3) speed /= 10.0;
+    let speed = (2000 + Math.random()*2000) / hackBuffs.logSpeedMod;
     activeWindows[depth].timer = setInterval(()=>{ generateSubLog(depth); }, speed);
 }
 
 function closeDreamWindow(depth) {
     const w = activeWindows[depth]; if (!w) return;
-    clearInterval(w.timer);
-    log_corrector.push({ creature: w.creature, count: w.count, type: w.type });
-    w.el.style.transform = "scale(0)";
-    setTimeout(() => { if(w.el.parentNode) w.el.parentNode.removeChild(w.el); }, 300);
+    clearInterval(w.timer); log_corrector.push({ creature: w.creature, count: w.count, type: w.type });
+    w.el.style.transform = "scale(0)"; setTimeout(() => { if(w.el.parentNode) w.el.parentNode.removeChild(w.el); }, 300);
     delete activeWindows[depth];
 }
 
 function generateSubLog(depth) {
     const w = activeWindows[depth]; if (!w) return;
-    const data = actionData[w.type];
-    let text = ""; let css = "log-line";
+    const data = actionData[w.type]; let text = ""; let css = "log-line";
     if (w.state === "SLEEP") {
         w.stateTimer--; if (w.stateTimer <= 0) { w.state = "NORMAL"; text = w.creature + data.wakeUp; } else { text = w.creature + data.sleeping; css += " sleep"; }
     } else if (w.state === "EAT") {
@@ -717,11 +1142,8 @@ function generateSubLog(depth) {
              else if(r<0.3) { w.state="EAT"; w.stateTimer=3; text=w.creature+data.eatStart; }
              else text = w.creature + data.normal[Math.floor(Math.random()*data.normal.length)];
         } else {
-            ram = Math.floor(Math.random() * 3)
-            const baseIdx = w.idx * 3;
-            const o = ram
-            const a = ram
-            text = `${w.creature}は${logsObjects[baseIdx + o]}を${logsActions[baseIdx + a]}`;
+            const o = logsObjects[Math.floor(Math.random()*logsObjects.length)]; const a = logsActions[Math.floor(Math.random()*logsActions.length)];
+            text = `${w.creature}が${o}を${a}`;
         }
     }
     const area = document.getElementById(`log-area-${depth}`);
@@ -732,47 +1154,40 @@ function generateSubLog(depth) {
 
 // 実績精算
 function checkAchievements() {
-    if (log_corrector.length === 0) {
-        isStabilized = false;
-        return;
-    }
-    isSettling = true;
-    isStabilized = false; // 解除
-    
-    let lotteryProb = 0.2; let conditionMult = 1;
-    const rngLvl = activePassives.rng_hack.level;
-    if (rngLvl === 1) lotteryProb *= 1.2; if (rngLvl === 2) lotteryProb *= 2.0; if (rngLvl === 3) { lotteryProb = 1.0; conditionMult = 50; }
+    if (log_corrector.length === 0) return;
+    checkCycleReset(); 
 
-    const box = document.getElementById("settlement-box");
-    const countEl = document.getElementById("settlement-count");
+    isSettling = true;
+    const box = document.getElementById("settlement-box"); const countEl = document.getElementById("settlement-count");
     const total = log_corrector.reduce((a,b)=>a+b.count,0);
     
     totalLogsAllTime += total;
     localStorage.setItem("squirrel_total_logs", totalLogsAllTime);
-    hudTotalLogs.textContent = totalLogsAllTime;
+    document.getElementById("hud-total-logs").textContent = totalLogsAllTime;
+    calculateStats(); 
 
-    let c = 0;
-    let toothElephantFlag=false, toothHippoFlag=false;
+    let c = 0; let toothElephantFlag=false, toothHippoFlag=false;
+    const am = hackBuffs.achieveMod;
 
     log_corrector.forEach(log => {
         const cName = log.creature;
         for(let i=0; i<log.count; i++) {
-            if (Math.random() < lotteryProb) { 
+            if (Math.random() < (0.2 * am)) { 
                 if(["オオカミ","カワウソ","コウモリ","キツツキ","ゾウガメ"].includes(cName)) achievementProgress.extinctionCount++;
                 if(cName==="ゾウ") toothElephantFlag=true;
                 if(cName==="カバ") toothHippoFlag=true;
-                if(cName==="トラ" && Math.random() < 0.1 * conditionMult) achievementProgress.huntTiger=true;
-                if(cName==="ライオン" && Math.random() < 0.05 * conditionMult) achievementProgress.huntLion=true;
-                if(cName==="ドングリ" && Math.random() < 0.006 * conditionMult) unlockById("miracle_growth");
-                if(cName==="カイウサギ" && Math.floor(Math.random()*100)+1===1) achievementProgress.jumpRabbit=true;
-                if(cName==="アマガエル" && Math.floor(Math.random()*100)+1===1) achievementProgress.jumpFrog=true;
-                if(cName==="アカカンガルー" && Math.floor(Math.random()*100)+1===10) achievementProgress.jumpKangaroo=true;
-                if(cName==="キリン" && Math.floor(Math.random()*100)+1===50) achievementProgress.tongueGiraffe=true;
-                if(cName==="マレーグマ" && Math.floor(Math.random()*100)+1===25) achievementProgress.tongueBear=true;
-                if(cName==="チューリップ" && Math.floor(Math.random()*6)+1===3) unlockById("tulip_self");
-                if(cName==="クローバー" && Math.floor(Math.random()*100)+1===56) unlockById("max_clover");
-                if(cName==="ホシガメ" && Math.floor(Math.random()*100)+1===29) unlockById("turtle_temp");
-                if(cName==="アヒル" && Math.floor(Math.random()*100)+1===12) unlockById("duck_imprint");
+                if(cName==="トラ" && Math.random() < (0.1 * am)) achievementProgress.huntTiger=true;
+                if(cName==="ライオン" && Math.random() < (0.05 * am)) achievementProgress.huntLion=true;
+                if(cName==="ドングリ" && Math.random() < (0.006 * am)) unlockById("miracle_growth");
+                if(cName==="カイウサギ" && Math.random() < (0.01 * am)) achievementProgress.jumpRabbit=true;
+                if(cName==="アマガエル" && Math.random() < (0.01 * am)) achievementProgress.jumpFrog=true;
+                if(cName==="アカカンガルー" && Math.random() < (0.01 * am)) achievementProgress.jumpKangaroo=true;
+                if(cName==="キリン" && Math.random() < (0.02 * am)) achievementProgress.tongueGiraffe=true;
+                if(cName==="マレーグマ" && Math.random() < (0.04 * am)) achievementProgress.tongueBear=true;
+                if(cName==="チューリップ" && Math.random() < (0.16 * am)) unlockById("tulip_self");
+                if(cName==="クローバー" && Math.random() < (0.01 * am)) unlockById("max_clover");
+                if(cName==="ホシガメ" && Math.random() < (0.01 * am)) unlockById("turtle_temp");
+                if(cName==="アヒル" && Math.random() < (0.01 * am)) unlockById("duck_imprint");
             }
         }
     });
@@ -780,18 +1195,6 @@ function checkAchievements() {
     if(toothElephantFlag && toothHippoFlag) unlockById("tooth_collection");
     achievementList.forEach(ach => { if(!unlockedAchievements.has(ach.id) && ach.condition()) unlockAchievement(ach); });
     saveProgress();
-
-    // 耐久値減少
-    for(let k in activePassives) {
-        if(activePassives[k].level > 0) {
-            activePassives[k].durability--;
-            if(activePassives[k].durability <= 0) {
-                activePassives[k].level = 0; activePassives[k].durability = 0;
-                addLog(`Passive Expired: ${passiveDatabase.find(p=>p.id===k).name}`, "system");
-            }
-        }
-    }
-    updatePassiveDisplay();
 
     const timer = setInterval(() => {
         c += Math.ceil(total / 30); if(c > total) c = total;
@@ -803,7 +1206,10 @@ function checkAchievements() {
 
         if(c >= total) {
             clearInterval(timer); playFinishSound(); log_corrector=[];
-            setTimeout(() => { isSettling = false; countEl.textContent="0"; }, 1500);
+            setTimeout(() => { 
+                isSettling = false; countEl.textContent="0"; 
+                checkHackingEvent(); 
+            }, 1500);
         }
     }, 50);
 }
@@ -819,8 +1225,7 @@ function initAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window
 function playBlip() {
     if(!audioCtx) return; if(audioCtx.state==='suspended') audioCtx.resume();
     const o=audioCtx.createOscillator(); const g=audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
-    o.frequency.value=800; g.gain.value=0.05; o.start(); o.stop(audioCtx.currentTime+0.05);
+    o.connect(g); g.connect(audioCtx.destination); o.frequency.value=800; g.gain.value=0.05; o.start(); o.stop(audioCtx.currentTime+0.05);
 }
 function playFinishSound() {
     if(!audioCtx) return;
@@ -834,7 +1239,6 @@ function playFinishSound() {
     });
 }
 
-// 実績設定
 let achievementProgress = { extinctionCount: 0, huntTiger: false, huntLion: false, jumpRabbit: false, jumpFrog: false, jumpKangaroo: false, tongueGiraffe: false, tongueBear: false };
 if(localStorage.getItem("squirrel_progress")) achievementProgress = JSON.parse(localStorage.getItem("squirrel_progress"));
 let unlockedAchievements = new Set();
@@ -869,11 +1273,31 @@ document.getElementById("btn-zukan").onclick = () => {
 };
 document.getElementById("zukan-close").onclick = () => modal.style.display = "none";
 
+// ★ 追加: チュートリアルモーダル
+const tutorialModal = document.getElementById("tutorial-modal");
+function closeTutorial() {
+    localStorage.setItem("squirrel_tutorial_seen", "true");
+    tutorialModal.style.display = "none";
+    isPaused = false;
+    checkHackingEvent();
+    if (!isPaused && !isBattling && !isSettling) {
+        mainLoopTimer = setInterval(updateCounter, 2500);
+    }
+}
+
 // 開始
 addLog("システム起動...");
 initAudio();
-// タイマーを変数に格納して管理
-mainLoopTimer = setInterval(updateCounter, 2500);
+calculateStats(); 
+
+// ★ 追加: チュートリアル表示の判定
+if (!localStorage.getItem("squirrel_tutorial_seen")) {
+    isPaused = true;
+    tutorialModal.style.display = "flex";
+} else {
+    checkHackingEvent(); 
+    if (!isPaused) mainLoopTimer = setInterval(updateCounter, 2500);
+}
 
 </script>
 </body>
