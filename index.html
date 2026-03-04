@@ -230,7 +230,7 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
 .log-line.neutral { color: #555; }
 .log-line.system { font-weight: bold; }
 .log-line.chaos { color: #e91e63; font-weight: bold; }
-.log-line.hack { color: #ffeb3b; font-weight: bold; }
+.log-line.hack { color: #49833e; font-weight: bold; }
 
 /* 清算演出 */
 #settlement-ui { position: absolute; top: 60px; right: 20px; display: flex; flex-direction: column; align-items: center; z-index: 500; }
@@ -276,7 +276,7 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
 
     <div class="hud-panel" style="flex: 0 0 140px;">
         <div class="hud-label">INVENTORY</div>
-        <div class="item-slot" title="Dream Shifter">
+        <div class="item-slot" title="Dream Shifter" onclick="openItemModal()">
             <span class="item-icon">🧬</span>
             <div>
                 <div style="font-size:10px;">Dream Shifter</div>
@@ -367,13 +367,26 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
         <div id="event-choices" style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;"></div>
     </div>
 </div>
-
+<div id="item-modal" class="overlay-modal" style="z-index: 8500;">
+    <div style="width: 80%; max-width: 400px; border: 3px solid #fff; padding: 30px; background: #111; text-align: center; box-shadow: 0 0 30px rgba(0,0,0,0.8); color: #fff;">
+        <h2 style="margin-top:0; font-family:'Orbitron'; color:#0ff;">USE DREAM SHIFTER</h2>
+        <p style="font-size:14px; margin-bottom:30px; color:#ccc;">対象の深度を強制的にシフトさせます。<br>どちらへ移動しますか？</p>
+        <div style="display:flex; gap:15px; justify-content:center;">
+            <button class="battle-btn" onclick="useShifter(1)">+1 (深く)</button>
+            <button class="battle-btn" onclick="useShifter(-1)">-1 (浅く)</button>
+        </div>
+        <button class="battle-btn flee" style="margin-top:20px; width:100%;" onclick="closeItemModal()">キャンセル</button>
+    </div>
+</div>
 <div id="container">
     <div id="header">
         <div style="display:flex; align-items:center; gap:10px;">
             <span>Parallel Dream Processor</span>
         </div>
-        <button id="btn-zukan">ACHIEVEMENTS</button>
+        <div style="display:flex; gap:10px;">
+            <button id="btn-gift">GIFTS</button>
+            <button id="btn-zukan">ACHIEVEMENTS</button>
+        </div>
     </div>
     <div id="main-content-area">
         <div id="settlement-ui">
@@ -395,6 +408,21 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
         <div id="zukan-close" style="position:absolute; top:10px; right:20px; color:#000; cursor:pointer; font-size:30px; font-weight:bold;">×</div>
         <h2 style="color:#000; text-align:center; border-bottom:3px solid #000; padding-bottom:10px;">ACQUIRED LOGS</h2>
         <div id="achievement-list"></div>
+    </div>
+</div>
+<div id="gift-modal" class="overlay-modal" style="z-index: 6000;">
+    <div style="width: 80%; max-width: 600px; background: #fff; border: 4px solid #000; padding: 20px; position: relative; box-shadow: 10px 10px 0px rgba(0,0,0,0.1);">
+        <div id="gift-close" style="position:absolute; top:10px; right:20px; cursor:pointer; font-size:30px; font-weight:bold;">×</div>
+        <h2 style="text-align:center; border-bottom:3px solid #000; padding-bottom:10px;">GIFT EQUIPMENT</h2>
+        
+        <div style="display:flex; justify-content:space-around; margin-bottom:20px;">
+            <div id="equip-slot-頭" style="border:2px solid #000; padding:10px; text-align:center; width:30%;">【頭】<br><span style="font-size:12px;color:#555;">未装備</span></div>
+            <div id="equip-slot-手" style="border:2px solid #000; padding:10px; text-align:center; width:30%;">【手】<br><span style="font-size:12px;color:#555;">未装備</span></div>
+            <div id="equip-slot-足" style="border:2px solid #000; padding:10px; text-align:center; width:30%;">【足】<br><span style="font-size:12px;color:#555;">未装備</span></div>
+        </div>
+
+        <h3 style="font-size:14px; margin-bottom:5px;">Unlocked Gifts (クリックで装備/解除)</h3>
+        <div id="unlocked-gifts-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;"></div>
     </div>
 </div>
 
@@ -480,7 +508,7 @@ function getObserverLogText() {
     if (cycleMin == 160) return "？？はサイチョウを見ている";
     if (cycleMin == 163) return "？？はマレーグマを上から見ている";
     if (cycleMin == 165) return "？？は休憩所で休んでいる";
-    if (cycleMin == 168) return "？？はライ Lion を見ている";
+    if (cycleMin == 168) return "？？はライオンを見ている";
     if (cycleMin == 171) return "？？はフクロウを見ている";
     if (cycleMin == 173) return "？？は爬虫類を見ている";
     if (cycleMin == 175) return "？？は首元がふさふさな鳥を見ている";
@@ -507,7 +535,8 @@ let playerStats = { maxHp: 100, hp: 100, atk: 10, spd: 10, critRate: 5, critDmg:
 let inventory = { shifter: 0 };
 let totalLogsAllTime = 0; 
 let enemyLevel = 1;
-
+let creatureLogCounts = {}; 
+let unlockedGifts = [];     
 let dreamCounter = 0;
 let isSettling = false;
 let isPaused = false;
@@ -517,7 +546,8 @@ let log_corrector = [];
 let mainLoopTimer = null;
 let totalDepthChanges = 0; 
 let enemyStats = { hp: 100, maxHp: 100, atk: 15, spd: 12 };
-let isPlayerTurn = true; 
+let isPlayerTurn = true;    
+let equippedGifts = { "頭": null, "手": null, "足": null }; // ▼ 追加: 現在装備しているギフト
 
 // ================================================================
 // 4. ハッキングカード システム
@@ -551,6 +581,114 @@ const hackingCards = {
         { id: "P_WEAK", name: "システム掌握", desc: "敵のHPと攻撃力 -50%", apply: () => { hackBuffs.enemyHpMod = 0.5; hackBuffs.enemyAtkMod = 0.5; } }
     ]
 };
+
+const giftDatabase = [
+    { 
+        id: "gift_damage_loss01",       // 【必須】ギフトのID（他と絶対に被らない英語を入れる）
+        name: "海洋の安寧",         // 【必須】画面に表示される名前
+        reqCreature: "クジラ",   // 【必須】解放条件となる動物の名前（正確に）
+        reqCount: 100,              // 【必須】解放に必要な観測回数
+        desc: "受けるダメージの軽減",         // 【必須】画面に表示される説明
+        type: "memo_type01",          // （メモ用。プログラム上は使わないので自由でOK）
+        slot: "頭"                  // 【必須】装備できる部位（"頭", "手", "足" のいずれか）
+    },
+    { 
+        id: "gift_superlucky",     
+        name: "殻割の石",        
+        reqCreature: "ラッコ",  
+        reqCount: 100,             
+        desc: "攻撃時低確率でスーパークリティカルを発動",        
+        type: "memo_type02",         
+        slot: "手"                 
+    },
+        { 
+        id: "gift_fleeback",     
+        name: "巻き取る蔓",        
+        reqCreature: "ドクダミ",  
+        reqCount: 100,             
+        desc: "逃走成功時低確率でパッチを失わない",        
+        type: "memo_type03",         
+        slot: "足"                 
+    },
+        { 
+        id: "gift_landani_up",     
+        name: "調和の羽飾り",        
+        reqCreature: "カカポ",  
+        reqCount: 100,             
+        desc: "陸上に棲む生物の出現率up",        
+        type: "memo_type04",         
+        slot: "頭"                 
+    },
+        { 
+        id: "gift_insect_up",     
+        name: "七つの樹冠",        
+        reqCreature: "ナナフシ",  
+        reqCount: 100,             
+        desc: "昆虫の出現率up",        
+        type: "memo_type05",         
+        slot: "頭"                 
+    },
+        { 
+        id: "gift_plant_up",     
+        name: "太陽の冠",        
+        reqCreature: "オリーブ",  
+        reqCount: 100,             
+        desc: "植物の出現率up",        
+        type: "memo_type06",         
+        slot: "頭"                 
+    },
+        { 
+        id: "gift_special_log",     
+        name: "のびのび葉っぱ",        
+        reqCreature: "豆苗",  
+        reqCount: 100,             
+        desc: "アチーブメントの獲得が少ししやすくなる",        
+        type: "memo_type07",         
+        slot: "手"                 
+    },
+        { 
+        id: "gift_log_speeder",     
+        name: "ぶんぶんリング",        
+        reqCreature: "ミツバチ",  
+        reqCount: 100,             
+        desc: "ログ生成速度がちょっぴり上がる",        
+        type: "memo_type08",         
+        slot: "頭"                 
+    },
+        { 
+        id: "gift_stabilizer",     
+        name: "軛の鋲",        
+        reqCreature: "ニワトリ",  
+        reqCount: 100,             
+        desc: "過覚醒・過睡眠の進行を和らげる",        
+        type: "memo_type09",         
+        slot: "足"                 
+    },
+    { 
+        id: "gift_heal", 
+        name: "生命の残滓", 
+        reqCreature: "テントウムシ", // アマガエルを100回観測で解放
+        reqCount: 100, 
+        desc: "バトル勝利時、減少したHPの10%を回復する",
+        type: "battle_win_heal" , slot: "手"
+    },
+    { 
+        id: "gift_slow", 
+        name: "泥濘の足跡", 
+        reqCreature: "エゾジカ", 
+        reqCount: 100, 
+        desc: "敵の初期速度を5%低下させる",
+        type: "enemy_slow", slot: "足"
+    },
+    { 
+        id: "gift_shifter", 
+        name: "夢の滑空", 
+        reqCreature: "モモンガ", 
+        reqCount: 100, 
+        desc: "深度変動時、1%の確率でDream Shifterを獲得",
+        type: "shifter_chance", slot: "頭"
+    }
+];
 
 const hackingThresholds = [
     { log: 0, rank: "Normal" }, { log: 200, rank: "Bronze" }, { log: 500, rank: "Silver" },
@@ -657,9 +795,13 @@ function giveRandomPatch() {
 }
 
 function reapplyWindowTimers() {
+    let currentSpeedMod = hackBuffs.logSpeedMod;
+    if (Object.values(equippedGifts).includes("gift_speed_up")) {
+        currentSpeedMod *= 1.2;
+    }
     Object.keys(activeWindows).forEach(k => {
         const w = activeWindows[k]; clearInterval(w.timer);
-        let speed = (2000 + Math.random()*2000) / hackBuffs.logSpeedMod;
+        let speed = (2000 + Math.random()*2000) / currentSpeedMod;
         w.timer = setInterval(()=>{ generateSubLog(k); }, speed);
     });
 }
@@ -690,6 +832,9 @@ function loadSavedData() {
     if (localStorage.getItem("squirrel_total_logs")) totalLogsAllTime = parseInt(localStorage.getItem("squirrel_total_logs"), 10);
     if (localStorage.getItem("squirrel_enemy_level")) enemyLevel = parseInt(localStorage.getItem("squirrel_enemy_level"), 10);
     if (localStorage.getItem("squirrel_hacking_index")) currentHackingIndex = parseInt(localStorage.getItem("squirrel_hacking_index"), 10);
+    if (localStorage.getItem("squirrel_creature_counts")) creatureLogCounts = JSON.parse(localStorage.getItem("squirrel_creature_counts"));
+    if (localStorage.getItem("squirrel_unlocked_gifts")) unlockedGifts = JSON.parse(localStorage.getItem("squirrel_unlocked_gifts"));
+    if (localStorage.getItem("squirrel_equipped_gifts")) equippedGifts = JSON.parse(localStorage.getItem("squirrel_equipped_gifts"));
     activeHackingCardId = localStorage.getItem("squirrel_active_hack") || null;
     
     const savedPatches = localStorage.getItem("squirrel_active_patches");
@@ -716,8 +861,14 @@ function checkCycleReset() {
         localStorage.removeItem("squirrel_active_hack");
         localStorage.removeItem("squirrel_active_patches");
         document.getElementById("hud-total-logs").textContent = totalLogsAllTime;
-        
+        creatureLogCounts = {};
+        unlockedGifts = [];
+        equippedGifts = { "頭": null, "手": null, "足": null };
+        localStorage.removeItem("squirrel_creature_counts");
+        localStorage.removeItem("squirrel_unlocked_gifts");
+        localStorage.removeItem("squirrel_equipped_gifts");
         restoreHackingBuff(); calculateStats(); 
+        reapplyWindowTimers();
         addLog("【SYSTEM】サイクルが更新されました。総ログ・ハッキング・パッチ・実績等が初期化されました。", "system");
         checkHackingEvent();
     }
@@ -822,10 +973,15 @@ function showEventModal(type) {
         choices.appendChild(btnNext);
     } else if (type === "EVENT_GIFT_PLACEHOLDER") {
         title.textContent = "神秘的なシルエット"; title.style.color = "#4caf50";
-        desc.innerHTML = "光り輝く生物のシルエットが、あなたを静かに見つめている。<br>何かを託そうとしているようだ…<br><br><span style='color:#aaa; font-size:10px;'>※今後のアップデートで「ギフト」が実装される予定です</span>";
-        const btnAccept = document.createElement("button"); btnAccept.className="event-btn"; btnAccept.textContent="受け取る (未実装)"; 
-        btnAccept.onclick = () => { addLog("神秘的なシルエットから、何かを受け取った気がした…", "system"); closeEventModal(); };
+        desc.innerHTML = "光り輝く生物のシルエットが、あなたを静かに見つめている。<br>何かを託そうとしているようだ…";
+        const btnAccept = document.createElement("button"); btnAccept.className="event-btn"; btnAccept.textContent="受け取る"; 
+        btnAccept.onclick = () => resolveGiftEvent();
+        
+        const btnLeave = document.createElement("button"); btnLeave.className="event-btn"; btnLeave.textContent="立ち去る"; 
+        btnLeave.onclick = closeEventModal;
+        
         choices.appendChild(btnAccept);
+        choices.appendChild(btnLeave);
     }
 }
 
@@ -843,8 +999,8 @@ function resolveOldman(choiceIsHead) {
     const isHead = Math.random() < 0.5; const desc = document.getElementById("event-desc"); const choices = document.getElementById("event-choices"); choices.innerHTML = "";
     const btnClose = document.createElement("button"); btnClose.className="event-btn"; btnClose.textContent="立ち去る"; btnClose.onclick=closeEventModal; choices.appendChild(btnClose);
     if (choiceIsHead === isHead) {
-        desc.innerHTML = `「ほう…見事じゃ。持って行くがよい」<br><br><span style="color:#0f0;">運試しに勝利した！ ログ総数が 50 増加した！</span>`;
-        totalLogsAllTime += 50; addLog("老人の運試しに勝利し、50ログを獲得した", "system");
+    desc.innerHTML = `「ほう…見事じゃ。持って行くがよい」<br><br><span style="color:#0f0;">運試しに勝利した！ ログ総数が 2倍 になった！</span>`;
+        totalLogsAllTime *= 2; addLog("老人の運試しに勝利し、ログ総数が2倍になった", "system");
     } else {
         const lost = Math.floor(totalLogsAllTime / 2); desc.innerHTML = `「残念じゃったな…対価は頂いていくぞ」<br><br><span style="color:#f55;">運試しに敗北した… ログ総数を ${lost} 失った…</span>`;
         totalLogsAllTime -= lost; addLog(`老人の運試しに敗北し、${lost}ログを失った`, "chaos");
@@ -852,12 +1008,45 @@ function resolveOldman(choiceIsHead) {
     updateLogCountUI();
 }
 
+function resolveGiftEvent() {
+    const desc = document.getElementById("event-desc"); 
+    const choices = document.getElementById("event-choices"); 
+    choices.innerHTML = "";
+    
+    const btnClose = document.createElement("button"); 
+    btnClose.className="event-btn"; btnClose.textContent="立ち去る"; 
+    btnClose.onclick=closeEventModal; 
+    choices.appendChild(btnClose);
+
+    const lockedGifts = giftDatabase.filter(g => !unlockedGifts.includes(g.id));
+
+    if (lockedGifts.length > 0) {
+        const gift = lockedGifts[Math.floor(Math.random() * lockedGifts.length)];
+        unlockedGifts.push(gift.id);
+        localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
+        desc.innerHTML = `シルエットが光に包まれ、あなたの脳内に新たなデータが書き込まれた！<br><br><span style="color:#0f0;">ギフト『${gift.name}』を獲得した！</span>`;
+        addLog(`【EVENT】神秘的なシルエットからギフト『${gift.name}』を授かった！`, "hack");
+        const t = document.getElementById("toast"); 
+        t.textContent = `Gift Unlocked: ${gift.name}`; 
+        t.style.display = "block"; setTimeout(()=>t.style.display="none", 3000);
+        if (typeof renderGiftUI === "function") renderGiftUI();
+        
+    } else {
+        inventory.shifter += 1;
+        document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+        
+        desc.innerHTML = `シルエットは満足げに頷き、光の粒子となって消えていった…<br><br><span style="color:#0f0;">[Dream Shifter] を3つ獲得した！</span>`;
+        addLog(`【EVENT】シルエットから [Dream Shifter] を1つ授かった！`, "system");
+    }
+}
+
 function resolveMachine(isTouch) {
     const desc = document.getElementById("event-desc"); const choices = document.getElementById("event-choices"); choices.innerHTML = "";
     const btnClose = document.createElement("button"); btnClose.className="event-btn"; btnClose.textContent="立ち去る"; btnClose.onclick=closeEventModal; choices.appendChild(btnClose);
     if (isTouch) {
-        desc.innerHTML = `指が触れた瞬間、膨大なデータが脳内に流れ込んできた！<br><br><span style="color:#0f0;">ログ総数が倍になった！</span>`;
-        addLog(`電子の亡霊と接触し、ログ総数が倍増した`, "system"); totalLogsAllTime *= 2;
+        desc.innerHTML = `指が触れた瞬間、膨大なデータが脳内に流れ込んできた！<br><br><span style="color:#0f0;">ログ総数が1.5倍になった！</span>`;
+        totalLogsAllTime = Math.floor(totalLogsAllTime * 1.5);
+        addLog(`電子の亡霊と接触し、ログ総数が1.5倍になった`, "system"); 
     } else { desc.innerHTML = `あなたは不気味に思い、その場から急いで立ち去った。`; addLog("電子の亡霊を振り切った", "neutral"); }
     updateLogCountUI();
 }
@@ -876,6 +1065,9 @@ function startBattle() {
     isBattling = true; isPaused = true; clearInterval(mainLoopTimer); 
     enemyStats.maxHp = Math.floor(100 * Math.pow(1.2, enemyLevel - 1) * hackBuffs.enemyHpMod); enemyStats.hp = enemyStats.maxHp;
     enemyStats.atk = Math.floor(15 * Math.pow(1.15, enemyLevel - 1) * hackBuffs.enemyAtkMod); enemyStats.spd = 10 + enemyLevel * 2;
+    if (Object.values(equippedGifts).includes("gift_slow")) {
+        enemyStats.spd = Math.floor(enemyStats.spd * 0.90);
+    }
 
     document.getElementById("b-enemy-name").textContent = `NIGHTMARE Lv.${enemyLevel}`; document.getElementById("battle-log").innerHTML = ""; document.getElementById("battle-commands").style.display = "flex";
     addBattleLog(`システムに異常を検知。Lv.${enemyLevel}のナイトメアが出現した！`, "#e91e63"); updateBattleUI(); document.getElementById("battle-modal").style.display = "flex";
@@ -913,9 +1105,18 @@ function processTurn() {
 }
 
 function playerAttack() {
-    let dmg = playerStats.atk; let isCrit = Math.random() < (playerStats.critRate / 100);
-    if (isCrit) { dmg = Math.floor(dmg * playerStats.critDmg); addBattleLog(`プレイヤーの攻撃！ クリティカル！！ 敵に ${dmg} のダメージ！`, "#ff0"); } 
-    else addBattleLog(`プレイヤーの攻撃！ 敵に ${dmg} のダメージ！`);
+    let dmg = playerStats.atk; let isCrit = Math.random() < (playerStats.critRate / 100); let superCrit = (Math.random() < 0.05)
+    if (isCrit) { 
+        dmg = Math.floor(dmg * playerStats.critDmg); 
+        if (Object.values(equippedGifts).includes("gift_superlucky") && Math.random() < 0.05) {
+            dmg = dmg * 2; 
+            addBattleLog(`プレイヤーの攻撃！ スーパークリティカル！！ 敵に ${dmg} のダメージ！`, "#ff0");
+        } else {
+            addBattleLog(`プレイヤーの攻撃！ クリティカル！！ 敵に ${dmg} のダメージ！`, "#ff0");
+        }
+    } else {
+        addBattleLog(`プレイヤーの攻撃！ 敵に ${dmg} のダメージ！`);
+    }
     enemyStats.hp -= dmg;
     let plantCount = activePatches.filter(p => p.attr === "草").length;
     if (plantCount >= 3) { let heal = Math.floor(playerStats.maxHp * 0.1); playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + heal); addBattleLog(`[草3セット効果] 体力が ${heal} 回復した！`, "#0f0"); }
@@ -923,7 +1124,12 @@ function playerAttack() {
 }
 
 function enemyAttack() {
-    let dmg = Math.floor(enemyStats.atk * (0.8 + Math.random() * 0.4)); playerStats.hp -= dmg; addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
+    let dmg = Math.floor(enemyStats.atk * (0.8 + Math.random() * 0.4)); 
+    if (Object.values(equippedGifts).includes("gift_damage_loss01")) {
+        dmg = Math.floor(dmg * 0.9);
+        addBattleLog("【GIFT:海洋の安寧】ダメージを軽減！", "#0f0");
+        }
+    playerStats.hp -= dmg; addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
     updateBattleUI();
 }
 
@@ -934,14 +1140,34 @@ function checkBattleEnd() {
 
 function endBattleWin() {
     document.getElementById("battle-modal").style.display = "none";
-    let rewardLogs = 50 * enemyLevel; log_corrector.push({ creature: "System(戦闘報酬)", count: rewardLogs, type: "SYSTEM" });
+    let rewardLogs = 50 * enemyLevel; log_corrector.push({ windowId: "battle", creature: "System(戦闘報酬)", count: rewardLogs, type: "SYSTEM" });
     enemyLevel++; localStorage.setItem("squirrel_enemy_level", enemyLevel);
+    inventory.shifter++; 
+    if (Object.values(equippedGifts).includes("gift_heal") && playerStats.hp < playerStats.maxHp) {    
+        let lostHp = playerStats.maxHp - playerStats.hp;
+        let healAmount = Math.max(1, Math.floor(lostHp * 0.1)); // 最低でも1は回復する
+        playerStats.hp += healAmount;
+        addLog(`【GIFT】生命の残滓の効果でHPが ${healAmount} 回復した！`, "system");
+        updateStatsUI([]); // UIに回復を反映
+    }
     addLog(`BATTLE WIN: ナイトメア撃破。未精算ログを獲得。(次周 Enemy Lv.${enemyLevel})`, "system");
     isBattling = false; addLog("SYSTEM: 敵性データからパッチの断片を抽出しました", "system"); showPassiveSelection();
+    document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+    addLog(`戦闘報酬として [Dream Shifter] を1つ獲得した！`, "system"); // ←追加
 }
 
 function endBattleFlee() {
     document.getElementById("battle-modal").style.display = "none"; addLog(`戦闘から離脱。安全のため深度をリセットします。`, "awaken");
+    if (activePatches.length > 0) {
+        if (Object.values(equippedGifts).includes("gift_fleeback") && Math.random() < 0.3) {
+            addLog(`【GIFT】不思議な力が働き、パッチのロストを防いだ！`, "#0ff");
+        } else {
+            const dropIndex = Math.floor(Math.random() * activePatches.length); 
+            const lostPatch = activePatches.splice(dropIndex, 1)[0];
+            addLog(`SYSTEM: 逃走の衝撃でパッチ [${lostPatch.name}] を1つロストした...`, "system"); 
+            calculateStats(); 
+        }
+    }
     if (activePatches.length > 0) {
         const dropIndex = Math.floor(Math.random() * activePatches.length); const lostPatch = activePatches.splice(dropIndex, 1)[0];
         addLog(`SYSTEM: 逃走の衝撃でパッチ [${lostPatch.name}] を1つロストした...`, "system"); calculateStats(); 
@@ -1072,10 +1298,33 @@ function updateCounter() {
     if (isSettling || isPaused || isBattling) return;
 
     checkCycleReset();
-    const oldCounter = dreamCounter; let delta = Math.floor(Math.random() * 3) - 1; dreamCounter += delta;
+    const oldCounter = dreamCounter; let delta = Math.floor(Math.random() * 3) - 1; 
+    if (Object.values(equippedGifts).includes("gift_stabilizer")) {
+        if (dreamCounter >= 12) {
+            // ＋の限界(15)に近い時：浅くなる(-1)確率を大幅に上げる
+            let r = Math.random();
+            if (r < 0.4) delta = -1;       // 60%の確率で安全な方向(-1)へ戻る
+            else if (r < 0.8) delta = 0;   // 30%の確率で踏みとどまる(0)
+            else delta = 1;                // 10%の確率でさらに危険な方向(1)へ
+        } 
+        else if (dreamCounter <= -12) {
+            // －の限界(-15)に近い時：浅くなる(1)確率を大幅に上げる
+            let r = Math.random();
+            if (r < 0.4) delta = 1;        // 60%の確率で安全な方向(1)へ戻る
+            else if (r < 0.8) delta = 0;   // 30%の確率で踏みとどまる(0)
+            else delta = -1;               // 10%の確率でさらに危険な方向(-1)へ
+        }
+    }
+    
+    dreamCounter += delta;
 
     if (delta !== 0) {
         totalDepthChanges += Math.abs(delta);
+        if (Object.values(equippedGifts).includes("gift_shifter") && Math.random() < 0.01) {
+            inventory.shifter++;
+            document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+            addLog("【GIFT】夢の滑空の効果で [Dream Shifter] を1つ発見した！", "hack");
+        }
         if (totalDepthChanges >= 30) { totalDepthChanges = 0; startBattle(); return; }
     }
 
@@ -1110,25 +1359,57 @@ function updateCounter() {
 // 夢ウィンドウ
 function openDreamWindow(depth) {
     if (activeWindows[depth]) return;
-    let idx = Math.floor(Math.random()*logsCreature.length); let cName = logsCreature[idx]; const type = getCreatureType(idx);
+    let idx = Math.floor(Math.random()*logsCreature.length); 
+    const equipped = Object.values(equippedGifts);
+    if (equipped.includes("gift_landani_up") && Math.random() < 0.3) {
+        idx = Math.floor(Math.random() * 42);
+    } 
+    else if (equipped.includes("gift_insect_up") && Math.random() < 0.3) {
+        idx = 58 + Math.floor(Math.random() * 20);
+    } 
+    else if (equipped.includes("gift_plant_up") && Math.random() < 0.3) {
+        idx = 78 + Math.floor(Math.random() * (logsCreature.length - 78));
+    } 
+    else {
+        idx = Math.floor(Math.random() * logsCreature.length);
+    }
+    let cName = logsCreature[idx]; const type = getCreatureType(idx);
     const div = document.createElement("div"); div.className = "sub-window dream-active"; div.id = `win-${depth}`;
     div.innerHTML = `<div class="sub-header"><span>#${depth}: ${cName}</span><span id="cnt-${depth}">0</span></div><div class="sub-log-area" id="log-area-${depth}"></div>`;
     dreamArea.appendChild(div);
     
     activeWindows[depth] = { el: div, creature: cName, type: type, idx: idx, count: 0, timer: null, state: "NORMAL", stateTimer: 0 };
-    
+    let currentSpeedMod = hackBuffs.logSpeedMod;
+    if (Object.values(equippedGifts).includes("gift_log_speeder")) {
+        currentSpeedMod *= 1.1; 
+    }
     let speed = (2000 + Math.random()*2000) / hackBuffs.logSpeedMod;
     activeWindows[depth].timer = setInterval(()=>{ generateSubLog(depth); }, speed);
 }
 
-function closeDreamWindow(depth) {
-    const w = activeWindows[depth]; if (!w) return;
-    clearInterval(w.timer); log_corrector.push({ creature: w.creature, count: w.count, type: w.type });
-    w.el.style.transform = "scale(0)"; setTimeout(() => { if(w.el.parentNode) w.el.parentNode.removeChild(w.el); }, 300);
-    delete activeWindows[depth];
+function closeDreamWindow(windowIndex) { 
+const winId = Number(windowIndex);
+    
+    // 以下、windowIndex を winId に置き換えて処理
+    const w = activeWindows[winId]; if (!w) return;
+    clearInterval(w.timer); 
+
+    const existingIndex = log_corrector.findIndex(log => log.windowId === winId);
+    const logData = { windowId: winId, creature: w.creature, count: w.count, type: w.type };
+    
+    if (existingIndex >= 0) {
+        log_corrector[existingIndex] = logData; 
+    } else {
+        log_corrector.push(logData); 
+    }
+
+    w.el.style.transform = "scale(0)"; 
+    setTimeout(() => { if(w.el.parentNode) w.el.parentNode.removeChild(w.el); }, 300);
+    delete activeWindows[winId];
 }
 
 function generateSubLog(depth) {
+    if (isPaused || isBattling || isSettling) return;
     const w = activeWindows[depth]; if (!w) return;
     const data = actionData[w.type]; let text = ""; let css = "log-line";
     if (w.state === "SLEEP") {
@@ -1167,10 +1448,28 @@ function checkAchievements() {
     calculateStats(); 
 
     let c = 0; let toothElephantFlag=false, toothHippoFlag=false;
-    const am = hackBuffs.achieveMod;
+    let am = hackBuffs.achieveMod;
+    if (Object.values(equippedGifts).includes("gift_special_log")) {
+        am *= 1.5; // ギフト装備中はさらに1.5倍！
+    }
 
     log_corrector.forEach(log => {
         const cName = log.creature;
+        if (cName !== "System(戦闘報酬)") {
+            if (!creatureLogCounts[cName]) creatureLogCounts[cName] = 0;
+            creatureLogCounts[cName] += log.count;
+
+            // 条件を満たしたギフトがあれば解放
+            giftDatabase.forEach(gift => {
+                if (gift.reqCreature === cName && creatureLogCounts[cName] >= gift.reqCount && !unlockedGifts.includes(gift.id)) {
+                    unlockedGifts.push(gift.id);
+                    addLog(`【GIFT】${cName}の観測データから『${gift.name}』を抽出しました！`, "hack");
+                    const t = document.getElementById("toast"); 
+                    t.textContent = `Gift Unlocked: ${gift.name}`; 
+                    t.style.display = "block"; setTimeout(()=>t.style.display="none", 3000);
+                }
+            });
+        }
         for(let i=0; i<log.count; i++) {
             if (Math.random() < (0.2 * am)) { 
                 if(["オオカミ","カワウソ","コウモリ","キツツキ","ゾウガメ"].includes(cName)) achievementProgress.extinctionCount++;
@@ -1195,6 +1494,9 @@ function checkAchievements() {
     if(toothElephantFlag && toothHippoFlag) unlockById("tooth_collection");
     achievementList.forEach(ach => { if(!unlockedAchievements.has(ach.id) && ach.condition()) unlockAchievement(ach); });
     saveProgress();
+    localStorage.setItem("squirrel_creature_counts", JSON.stringify(creatureLogCounts));
+    localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
+    localStorage.setItem("squirrel_equipped_gifts", JSON.stringify(equippedGifts));
 
     const timer = setInterval(() => {
         c += Math.ceil(total / 30); if(c > total) c = total;
@@ -1272,6 +1574,57 @@ document.getElementById("btn-zukan").onclick = () => {
     modal.style.display = "flex";
 };
 document.getElementById("zukan-close").onclick = () => modal.style.display = "none";
+
+// ================================================================
+// ギフト装備UI
+// ================================================================
+const giftModal = document.getElementById("gift-modal");
+
+document.getElementById("btn-gift").onclick = () => {
+    initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    renderGiftUI();
+    giftModal.style.display = "flex";
+};
+document.getElementById("gift-close").onclick = () => giftModal.style.display = "none";
+
+function renderGiftUI() {
+    // 装備中のスロット表示更新
+    ["頭", "手", "足"].forEach(slot => {
+        const eqId = equippedGifts[slot];
+        const eqGift = giftDatabase.find(g => g.id === eqId);
+        document.getElementById(`equip-slot-${slot}`).innerHTML = `【${slot}】<br><span style="font-size:12px; font-weight:bold; color:${eqGift ? '#e91e63' : '#555'}">${eqGift ? eqGift.name : '未装備'}</span>`;
+    });
+
+    // 所持リストの更新
+    const listEl = document.getElementById("unlocked-gifts-list");
+    listEl.innerHTML = "";
+    if (unlockedGifts.length === 0) {
+        listEl.innerHTML = "<div style='color:#999; font-size:12px;'>取得済みのギフトはありません</div>";
+        return;
+    }
+
+    unlockedGifts.forEach(id => {
+        const gift = giftDatabase.find(g => g.id === id);
+        if (!gift) return;
+        const isEquipped = Object.values(equippedGifts).includes(id);
+        
+        const div = document.createElement("div");
+        div.style.cssText = `padding: 10px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center; cursor:pointer; background:${isEquipped ? '#f0f8ff' : '#fff'};`;
+        div.innerHTML = `<div><strong style="font-size:14px;">[${gift.slot}] ${gift.name}</strong><br><span style="font-size:10px;color:#555;">${gift.desc}</span></div>`;
+        
+        // 装備/解除のロジック
+        div.onclick = () => {
+            if (isEquipped) {
+                equippedGifts[gift.slot] = null; // 外す
+            } else {
+                equippedGifts[gift.slot] = gift.id; // つける（同部位は自動で上書き）
+            }
+            localStorage.setItem("squirrel_equipped_gifts", JSON.stringify(equippedGifts));
+            renderGiftUI();
+        };
+        listEl.appendChild(div);
+    });
+}
 
 // ★ 追加: チュートリアルモーダル
 const tutorialModal = document.getElementById("tutorial-modal");
