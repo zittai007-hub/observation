@@ -1439,10 +1439,11 @@ function enemyAttack() {
     if (Object.values(equippedGifts).includes("gift_damage_loss")) {
         dmg = Math.floor(dmg * 0.9);
     }
-    else (isImmortalBuilder) {
+    if (isImmortalBuilder) {
         dmg = 0;
         addBattleLog(`【豊かな工務店】不死身の肉体がダメージを無効化した！`, "#0f0");
-    } else {
+    } 
+    else {
         playerStats.hp -= dmg; 
         addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
     }
