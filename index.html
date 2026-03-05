@@ -547,7 +547,13 @@ let mainLoopTimer = null;
 let totalDepthChanges = 0; 
 let enemyStats = { hp: 100, maxHp: 100, atk: 15, spd: 12 };
 let isPlayerTurn = true;    
-let equippedGifts = { "頭": null, "手": null, "足": null }; // ▼ 追加: 現在装備しているギフト
+let equippedGifts = { "頭": null, "手": null, "足": null }; 
+let instaKillArrows = 0;     
+let counterArmorStacks = 0;
+let isThunderBattle = false;
+let isImmortalBuilder = false;
+let currentEventId = null;  
+let lastEventId = null;
 
 // ================================================================
 // 4. ハッキングカード システム
@@ -687,7 +693,21 @@ const giftDatabase = [
         reqCount: 100, 
         desc: "深度変動時、1%の確率でDream Shifterを獲得",
         type: "shifter_chance", slot: "頭"
-    }
+    },
+    { 
+        id: "gift_uzoumuzo", 
+        name: "有象無象", 
+        reqCreature: "なし(イベント専用)", 
+        reqCount: 9999, 
+        desc: "数多の観測データの集合体。これ自体に効果はないが…", type: "event_item", slot: "頭" 
+    },
+    { 
+        id: "gift_reincarnation_ring", name: "輪廻転生リング", reqCreature: "なし(イベント専用)", reqCount: 9999, 
+        desc: "氷柱の連鎖が生み出した奇跡の指輪。（※効果は後で設定可能）", type: "event_item", slot: "手" 
+    },
+    { id: "gift_hidden_1", name: "隠された音色【序】", reqCreature: "なし", reqCount: 9999, desc: "隠しセットの1つ", type: "hidden_set", slot: "頭" },
+    { id: "gift_hidden_2", name: "隠された音色【破】", reqCreature: "なし", reqCount: 9999, desc: "隠しセットの1つ", type: "hidden_set", slot: "手" },
+    { id: "gift_hidden_3", name: "隠された音色【急】", reqCreature: "なし", reqCount: 9999, desc: "隠しセットの1つ", type: "hidden_set", slot: "足" }
 ];
 
 const hackingThresholds = [
@@ -835,6 +855,10 @@ function loadSavedData() {
     if (localStorage.getItem("squirrel_creature_counts")) creatureLogCounts = JSON.parse(localStorage.getItem("squirrel_creature_counts"));
     if (localStorage.getItem("squirrel_unlocked_gifts")) unlockedGifts = JSON.parse(localStorage.getItem("squirrel_unlocked_gifts"));
     if (localStorage.getItem("squirrel_equipped_gifts")) equippedGifts = JSON.parse(localStorage.getItem("squirrel_equipped_gifts"));
+    if (localStorage.getItem("squirrel_insta_arrows")) instaKillArrows = parseInt(localStorage.getItem("squirrel_insta_arrows"));
+    if (localStorage.getItem("squirrel_armor_stacks")) counterArmorStacks = parseInt(localStorage.getItem("squirrel_armor_stacks"));
+    if (localStorage.getItem("squirrel_immortal")) isImmortalBuilder = localStorage.getItem("squirrel_immortal") === "true";
+    if (localStorage.getItem("squirrel_last_event")) lastEventId = localStorage.getItem("squirrel_last_event");
     activeHackingCardId = localStorage.getItem("squirrel_active_hack") || null;
     
     const savedPatches = localStorage.getItem("squirrel_active_patches");
@@ -855,6 +879,15 @@ function checkCycleReset() {
         unlockedAchievements.clear();
         
         saveProgress();
+        instaKillArrows = 0;
+        counterArmorStacks = 0;
+        isImmortalBuilder = false;
+        currentEventId = null;
+        lastEventId = null;
+        localStorage.removeItem("squirrel_immortal");
+        localStorage.removeItem("squirrel_last_event");
+        localStorage.removeItem("squirrel_insta_arrows");
+        localStorage.removeItem("squirrel_armor_stacks");
         localStorage.setItem("squirrel_total_logs", totalLogsAllTime);
         localStorage.setItem("squirrel_enemy_level", enemyLevel);
         localStorage.setItem("squirrel_hacking_index", currentHackingIndex);
@@ -917,6 +950,11 @@ function calculateStats() {
     if (hpDiff > 0) playerStats.hp += hpDiff;
     if (playerStats.hp > playerStats.maxHp) playerStats.hp = playerStats.maxHp;
 
+    if (isImmortalBuilder) {
+        playerStats.maxHp = 1;
+        playerStats.hp = 1;
+        playerStats.spd = 10; 
+    }
     updateStatsUI(activeSets);
 }
 
@@ -944,10 +982,24 @@ function updateStatsUI(activeSets) {
 // ================================================================
 // ランダムイベントシステム (覚醒中)
 // ================================================================
+
 function triggerRandomEvent() {
     isPaused = true; clearInterval(mainLoopTimer);
-    const r = Math.random();
-    if (r < 0.25) showEventModal("EVENT_OLDMAN"); else if (r < 0.50) showEventModal("EVENT_MACHINE"); else if (r < 0.75) showEventModal("EVENT_MASK"); else showEventModal("EVENT_GIFT_PLACEHOLDER");
+    
+    // 発生する可能性のあるイベントリスト
+    const eventPool = [
+        "EVENT_OLDMAN", "EVENT_MACHINE", "EVENT_MASK", "EVENT_GIFT_PLACEHOLDER",
+        "EVENT_GOLDEN_EYE", "EVENT_SHIN", "EVENT_UBIQUITOUS_CAT", "EVENT_ARROW", "EVENT_HAMMER","EVENT_THUNDER", "EVENT_TIMBRE","EVENT_BUILDER","EVENT_ICICLE"
+        
+    ];
+    
+    const chosenEvent = eventPool[Math.floor(Math.random() * eventPool.length)];
+    
+    lastEventId = currentEventId;
+    currentEventId = eventPool[Math.floor(Math.random() * eventPool.length)];
+    localStorage.setItem("squirrel_last_event", currentEventId); 
+    
+    showEventModal(currentEventId);
 }
 
 function showEventModal(type) {
@@ -982,9 +1034,113 @@ function showEventModal(type) {
         
         choices.appendChild(btnAccept);
         choices.appendChild(btnLeave);
+    } else if (type === "EVENT_GOLDEN_EYE") {
+        title.textContent = "黄金の目"; title.style.color = "#ffd700";
+        desc.innerHTML = "巨大な黄金の目があなたを見下ろしている。<br>その視線は、あなたの存在を根底から焼き尽くそうとしている！";
+        const btnAccept = document.createElement("button"); btnAccept.className="event-btn"; btnAccept.textContent="耐え凌ぐ"; btnAccept.onclick=()=>resolveGoldenEye();
+        choices.appendChild(btnAccept);
+
+    } else if (type === "EVENT_SHIN") {
+        title.textContent = "しん。"; title.style.color = "#fff";
+        desc.innerHTML = "静寂。ただそれだけが支配した。<br>全てを差し出さなければ、そのまま意識が呑み込まれてしまいそうだ。";
+        
+        // 有象無象を持っているかチェック
+        if (unlockedGifts.includes("gift_uzoumuzo")) {
+            const btnDiscard = document.createElement("button"); btnDiscard.className="event-btn"; btnDiscard.textContent="『有象無象』を捨てる"; 
+            btnDiscard.onclick=()=>resolveShin(true);
+            choices.appendChild(btnDiscard);
+        }
+        const btnFascinated = document.createElement("button"); btnFascinated.className="event-btn"; btnFascinated.textContent="魅入られる"; 
+        btnFascinated.onclick=()=>resolveShin(false);
+        choices.appendChild(btnFascinated);
+
+    } else if (type === "EVENT_UBIQUITOUS_CAT") {
+        title.textContent = "遍く猫"; title.style.color = "#9c27b0";
+        desc.innerHTML = "「ニャァ…」<br>空間の至る所から、猫の鳴き声が響く。<br>何かを欲しがっているようだ。";
+        
+        const reqGifts = ["gift_heal", "gift_slow", "gift_shifter", "gift_damage_loss", "gift_superlucky", "gift_fleeback", "gift_landani_up", "gift_insect_up", "gift_plant_up", "gift_special_log", "gift_log_speeder", "gift_stabilizer"];
+        const hasAll = reqGifts.every(id => unlockedGifts.includes(id));
+        
+        if (hasAll) {
+            const btnGive = document.createElement("button"); btnGive.className="event-btn"; btnGive.textContent="全ての観測ギフトを捧げる"; 
+            btnGive.onclick=()=>resolveCat(true, reqGifts);
+            choices.appendChild(btnGive);
+        } else {
+            desc.innerHTML += "<br><br><span style='color:#f55;'>…しかし、猫が満足する何かをまだ持っていないようだ。</span>";
+        }
+        const btnLeave = document.createElement("button"); btnLeave.className="event-btn"; btnLeave.textContent="立ち去る"; 
+        btnLeave.onclick=()=>resolveCat(false, []);
+        choices.appendChild(btnLeave);
+    } else if (type === "EVENT_ARROW") {
+        title.textContent = "眩き瞬閧"; title.style.color = "#ffeb3b";
+        desc.innerHTML = "まばゆい光の中に、一本の矢が浮かんでいる。<br>どんな強敵をも貫く力を秘めているようだ。";
+        const btnTake = document.createElement("button"); btnTake.className="event-btn"; btnTake.textContent="矢を抜く";
+        btnTake.onclick = () => {
+            instaKillArrows++;
+            localStorage.setItem("squirrel_insta_arrows", instaKillArrows);
+            addLog("【EVENT】『眩い矢』を獲得した！", "system");
+            closeEventModal();
+        };
+        choices.appendChild(btnTake);
+
+    } else if (type === "EVENT_HAMMER") {
+        title.textContent = "槌を振り下ろす者"; title.style.color = "#ff5722";
+        desc.innerHTML = "巨大な槌を持つ者が、あなたを見下ろしている。<br>その加護を得られれば、いかなる攻撃にも報いることができるだろう。";
+        const btnAccept = document.createElement("button"); btnAccept.className="event-btn"; btnAccept.textContent="加護を受ける";
+        btnAccept.onclick = () => {
+            counterArmorStacks += 3;
+            localStorage.setItem("squirrel_armor_stacks", counterArmorStacks);
+            addLog(`【EVENT】『反撃アーマー』を3層獲得した！`, "system");
+            closeEventModal();
+        };
+        choices.appendChild(btnAccept);
+    } else if (type === "EVENT_THUNDER") {
+        title.textContent = "蠢く春雷"; title.style.color = "#ffeb3b";
+        desc.innerHTML = "空が割れるような轟音と共に、禍々しいナイトメアの群れが姿を現した！<br>（特異個体1体 ＋ 取り巻き4体）<br>逃げることはできない！";
+        
+        const btnFight = document.createElement("button"); btnFight.className="event-btn"; btnFight.textContent="迎え撃つ (死闘)";
+        btnFight.onclick = () => {
+            closeEventModal();
+            isThunderBattle = true; 
+            startBattle();
+        };
+        choices.appendChild(btnFight);
+    } else if (type === "EVENT_ICICLE") {
+        title.textContent = "瓦解する氷柱"; title.style.color = "#00bcd4";
+        
+        if (lastEventId === "EVENT_ICICLE") {
+            desc.innerHTML = "再び氷柱が瓦解する。<br>二度の崩壊を経て、中から美しく輝くリングが現れた…！";
+            const btnRing = document.createElement("button"); btnRing.className="event-btn"; btnRing.textContent="リングを手に入れる";
+            btnRing.onclick = () => resolveIcicle(true);
+            choices.appendChild(btnRing);
+        } else {
+            desc.innerHTML = "巨大な氷柱が崩れ落ち、周囲の時間を巻き戻そうとしている。<br>『前回の出来事』をもう一度引き起こしますか？";
+            const btnRepeat = document.createElement("button"); btnRepeat.className="event-btn"; btnRepeat.textContent="時間を巻き戻す";
+            btnRepeat.onclick = () => resolveIcicle(false, true);
+            const btnLeave = document.createElement("button"); btnLeave.className="event-btn"; btnLeave.textContent="立ち去る";
+            btnLeave.onclick = () => resolveIcicle(false, false);
+            choices.appendChild(btnRepeat);
+            choices.appendChild(btnLeave);
+        }
+
+    } else if (type === "EVENT_BUILDER") {
+        title.textContent = "豊かな工務店"; title.style.color = "#795548";
+        desc.innerHTML = "「よう、あんた。死にたくないならウチで改修工事していかないか？」<br><span style='color:#ff9800;'>※HPが1に固定され不死身になるが、速度が初期値(10)から上がらなくなる</span>";
+        const btnAccept = document.createElement("button"); btnAccept.className="event-btn"; btnAccept.textContent="改修工事を頼む";
+        btnAccept.onclick = () => resolveBuilder(true);
+        const btnLeave = document.createElement("button"); btnLeave.className="event-btn"; btnLeave.textContent="断る";
+        btnLeave.onclick = () => resolveBuilder(false);
+        choices.appendChild(btnAccept);
+        choices.appendChild(btnLeave);
+
+    } else if (type === "EVENT_TIMBRE") {
+        title.textContent = "まほろぶ音色"; title.style.color = "#e91e63";
+        desc.innerHTML = "どこからともなく、幻のような美しい音色が聞こえる。<br>音色は仲間を探しているようだ…";
+        const btnListen = document.createElement("button"); btnListen.className="event-btn"; btnListen.textContent="耳を澄ます";
+        btnListen.onclick = () => resolveTimbre();
+        choices.appendChild(btnListen);
     }
 }
-
 function closeEventModal() {
     document.getElementById("event-modal").style.display = "none"; isPaused = false; processHackingQueue();
     if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
@@ -995,7 +1151,7 @@ function updateLogCountUI() {
     calculateStats(); checkHackingEvent(); 
 }
 
-function resolveOldman(choiceIsHead) {
+function Oldman(choiceIsHead) {
     const isHead = Math.random() < 0.5; const desc = document.getElementById("event-desc"); const choices = document.getElementById("event-choices"); choices.innerHTML = "";
     const btnClose = document.createElement("button"); btnClose.className="event-btn"; btnClose.textContent="立ち去る"; btnClose.onclick=closeEventModal; choices.appendChild(btnClose);
     if (choiceIsHead === isHead) {
@@ -1058,19 +1214,166 @@ function resolveMask() {
     isPaused = false; processHackingQueue(); if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
 }
 
+function resolveGoldenEye() {
+    if (activePatches.length > 0) {
+        const dropIndex = Math.floor(Math.random() * activePatches.length);
+        const lostPatch = activePatches.splice(dropIndex, 1)[0];
+        addLog(`【EVENT】黄金の視線でパッチ [${lostPatch.name}] が崩壊した…`, "chaos");
+    }
+    playerStats.hp = 1;
+    addLog(`【EVENT】なんとか視線を遮ることが出来た…！`, "chaos");
+    
+    calculateStats(); 
+    closeEventModal();
+}
+function resolveShin(isDiscard) {
+    if (isDiscard) {
+        unlockedGifts = unlockedGifts.filter(id => id !== "gift_uzoumuzo");
+        Object.keys(equippedGifts).forEach(k => { if(equippedGifts[k] === "gift_uzoumuzo") equippedGifts[k] = null; });
+        localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
+        localStorage.setItem("squirrel_equipped_gifts", JSON.stringify(equippedGifts));
+        const lockedAchievements = achievementList.filter(ach => !unlockedAchievements.has(ach.id));
+        
+        if (lockedAchievements.length > 0) {
+            const randomAch = lockedAchievements[Math.floor(Math.random() * lockedAchievements.length)];
+            unlockAchievement(randomAch);
+            addLog(`【EVENT】『有象無象』を闇に放り投げた。静寂は振動し光となった。アチーブメントが1つ解放された。`, "system");
+        } else {
+            addLog(`【EVENT】『有象無象』を闇に放り投げた。しかし、あなたはもう全てを知っている`, "system");
+        }
+        
+        closeEventModal();
+    } else {
+        addLog(`【EVENT】静寂に魅入られ、意識が深く沈んでいく…！`, "chaos");
+        document.getElementById("event-modal").style.display = "none";
+        dreamCounter = -14; 
+        updateVisualState(); manageDreamWindows(); 
+        isPaused = false; processHackingQueue(); 
+        if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+    }
+}
+
+function resolveCat(isGive, reqGifts) {
+    if (isGive) {
+        unlockedGifts = unlockedGifts.filter(id => !reqGifts.includes(id));
+        reqGifts.forEach(id => {
+            Object.keys(equippedGifts).forEach(k => { if(equippedGifts[k] === id) equippedGifts[k] = null; });
+        });
+        
+        unlockedGifts.push("gift_uzoumuzo");
+        localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
+        localStorage.setItem("squirrel_equipped_gifts", JSON.stringify(equippedGifts));
+        
+        addLog(`【EVENT】観測データを捧げ、ギフト『有象無象』を獲得した！`, "hack");
+    } else {
+        addLog(`【EVENT】猫は興味を失い、どこかへ消えていった。`, "neutral");
+    }
+    closeEventModal();
+}
+
+function resolveIcicle(isDouble, isRepeat = false) {
+    if (isDouble) {
+        // 連続で氷柱だった場合
+        unlockedGifts.push("gift_reincarnation_ring");
+        localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
+        addLog("【EVENT】氷柱の連鎖により、ギフト『輪廻転生リング』を獲得した！", "#00bcd4");
+        closeEventModal();
+    } else if (isRepeat) {
+        // 前回イベントを繰り返す場合
+        addLog("【EVENT】氷柱が砕け、時間が巻き戻る…！", "#00bcd4");
+        if (lastEventId) {
+            // モーダルの中身を前回イベントに差し替えて表示
+            showEventModal(lastEventId); 
+        } else {
+            addLog("しかし、巻き戻すべき過去が存在しなかった。", "neutral");
+            closeEventModal();
+        }
+    } else {
+        closeEventModal();
+    }
+}
+
+function resolveBuilder(isAccept) {
+    if (isAccept) {
+        isImmortalBuilder = true;
+        localStorage.setItem("squirrel_immortal", "true");
+        addLog("【EVENT】豊かな工務店の改修を受けた！ [不死身 / 速度固定]", "#ff9800");
+        calculateStats(); // ステータスを即座に反映
+    } else {
+        addLog("【EVENT】工務店の誘いを断った。", "neutral");
+    }
+    closeEventModal();
+}
+
+function resolveTimbre() {
+    const hiddenSet = ["gift_hidden_1", "gift_hidden_2", "gift_hidden_3"];
+    // プレイヤーが持っている隠しセットのIDを抽出
+    const ownedHidden = hiddenSet.filter(id => unlockedGifts.includes(id));
+    
+    if (ownedHidden.length === 2) {
+        // 2つ持っていたら、持っていない残り1つを特定して付与
+        const missingGiftId = hiddenSet.find(id => !unlockedGifts.includes(id));
+        const giftData = giftDatabase.find(g => g.id === missingGiftId);
+        
+        unlockedGifts.push(missingGiftId);
+        localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
+        addLog(`【EVENT】音色が共鳴し、欠けていた『${giftData.name}』を呼び寄せた！`, "#e91e63");
+    } else {
+        addLog("【EVENT】音色はしばらく響いていたが、やがて虚空に消えていった…", "neutral");
+    }
+    closeEventModal();
+}
+
 // ================================================================
 // オートバトルシステム
 // ================================================================
 function startBattle() {
     isBattling = true; isPaused = true; clearInterval(mainLoopTimer); 
-    enemyStats.maxHp = Math.floor(100 * Math.pow(1.2, enemyLevel - 1) * hackBuffs.enemyHpMod); enemyStats.hp = enemyStats.maxHp;
-    enemyStats.atk = Math.floor(15 * Math.pow(1.15, enemyLevel - 1) * hackBuffs.enemyAtkMod); enemyStats.spd = 10 + enemyLevel * 2;
-    if (Object.values(equippedGifts).includes("gift_slow")) {
-        enemyStats.spd = Math.floor(enemyStats.spd * 0.90);
+    
+    if (isThunderBattle) {
+        let bossLevel = enemyLevel * 3;
+        let bossHp = Math.floor(100 * Math.pow(1.2, bossLevel - 1));
+        let minionHp = Math.floor(100 * Math.pow(1.2, enemyLevel - 1));
+        enemyStats.maxHp = Math.floor((bossHp + minionHp * 4) * hackBuffs.enemyHpMod);
+        let bossAtk = Math.floor(15 * Math.pow(1.15, bossLevel - 1));
+        let minionAtk = Math.floor(15 * Math.pow(1.15, enemyLevel - 1));
+        enemyStats.atk = Math.floor((bossAtk + minionAtk * 4) * hackBuffs.enemyAtkMod);
+        
+        enemyStats.spd = 10 + bossLevel * 2;
+        document.getElementById("b-enemy-name").textContent = `蠢く春雷の群れ (脅威度:Lv${bossLevel})`; 
+    } else {
+        enemyStats.maxHp = Math.floor(100 * Math.pow(1.2, enemyLevel - 1) * hackBuffs.enemyHpMod); 
+        enemyStats.atk = Math.floor(15 * Math.pow(1.15, enemyLevel - 1) * hackBuffs.enemyAtkMod); 
+        enemyStats.spd = 6 + enemyLevel * 2;
+        document.getElementById("b-enemy-name").textContent = `NIGHTMARE Lv.${enemyLevel}`; 
     }
+    
+    enemyStats.hp = enemyStats.maxHp;
+    document.getElementById("battle-log").innerHTML = ""; 
+    
+    const cmdArea = document.getElementById("battle-commands");
+    cmdArea.innerHTML = `<button class="battle-btn" onclick="battleAction('attack')">FIGHT (戦う)</button>`;
+    
+    if (!isThunderBattle) {
+        cmdArea.innerHTML += `<button class="battle-btn flee" onclick="battleAction('flee')">FLEE (逃げる)</button>`;
+    }
+    
+    if (instaKillArrows > 0) {
+        cmdArea.innerHTML += `<button class="battle-btn" style="border-color:#ffeb3b; color:#ffeb3b;" onclick="battleAction('arrow')">🎯 瞬閧の矢 (残:${instaKillArrows})</button>`;
+    }
+    cmdArea.style.display = "flex";
 
-    document.getElementById("b-enemy-name").textContent = `NIGHTMARE Lv.${enemyLevel}`; document.getElementById("battle-log").innerHTML = ""; document.getElementById("battle-commands").style.display = "flex";
-    addBattleLog(`システムに異常を検知。Lv.${enemyLevel}のナイトメアが出現した！`, "#e91e63"); updateBattleUI(); document.getElementById("battle-modal").style.display = "flex";
+    if (isThunderBattle) {
+        addBattleLog(`【WARNING】特大の異常検知！ボス級個体を含む群れが襲来した！`, "#ffeb3b"); 
+    } else {
+        addBattleLog(`システムに異常を検知。Lv.${enemyLevel}のナイトメアが出現した！`, "#e91e63"); 
+    }
+    
+    if (Object.values(equippedGifts).includes("gift_slow")) {
+        enemyStats.spd = Math.floor(enemyStats.spd * 0.95);
+    }
+    
+    updateBattleUI(); document.getElementById("battle-modal").style.display = "flex";
 }
 
 function updateBattleUI() {
@@ -1095,6 +1398,14 @@ function battleAction(type) {
         if (Math.random() < fleeChance) { addBattleLog("逃走に成功した！", "#0f0"); setTimeout(endBattleFlee, 1500); } 
         else { addBattleLog("逃走に失敗した...敵に捕捉された！", "#f55"); isPlayerTurn = false; setTimeout(processTurn, 800); }
     }
+    else if (type === 'arrow') {
+        instaKillArrows--;
+        localStorage.setItem("squirrel_insta_arrows", instaKillArrows);
+        addBattleLog("【眩い矢】を放った！", "#ffeb3b");
+        addBattleLog("光が敵を貫く！ ナイトメアを一撃で消し飛ばした！", "#0f0");
+        enemyStats.hp = 0; // 敵のHPを強制0にする
+        updateBattleUI();
+        setTimeout(checkBattleEnd, 800);
 }
 
 function processTurn() {
@@ -1122,17 +1433,32 @@ function playerAttack() {
     if (plantCount >= 3) { let heal = Math.floor(playerStats.maxHp * 0.1); playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + heal); addBattleLog(`[草3セット効果] 体力が ${heal} 回復した！`, "#0f0"); }
     updateBattleUI();
 }
-
+}
 function enemyAttack() {
     let dmg = Math.floor(enemyStats.atk * (0.8 + Math.random() * 0.4)); 
-    if (Object.values(equippedGifts).includes("gift_damage_loss01")) {
+    if (Object.values(equippedGifts).includes("gift_damage_loss")) {
         dmg = Math.floor(dmg * 0.9);
-        addBattleLog("【GIFT:海洋の安寧】ダメージを軽減！", "#0f0");
-        }
-    playerStats.hp -= dmg; addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
+    }
+    if (isImmortalBuilder) {
+        dmg = 0;
+        addBattleLog(`【豊かな工務店】不死身の肉体がダメージを無効化した！`, "#0f0");
+    } else {
+        playerStats.hp -= dmg; 
+        addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
+    }
+    playerStats.hp -= dmg; 
+    addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
+    if (counterArmorStacks > 0) {
+        counterArmorStacks--;
+        localStorage.setItem("squirrel_armor_stacks", counterArmorStacks);
+        let counterDmg = dmg + Math.floor(totalLogsAllTime * 0.05);
+        enemyStats.hp -= counterDmg;
+        
+        addBattleLog(`【反撃アーマー】受けた衝撃を反射！ 敵に ${counterDmg} のダメージ！ (残り${counterArmorStacks}層)`, "#ff9800");
+    }
+
     updateBattleUI();
 }
-
 function checkBattleEnd() {
     if (playerStats.hp <= 0) { addBattleLog("プレイヤーは倒れた...", "#f00"); setTimeout(endBattleLose, 2000); } 
     else if (enemyStats.hp <= 0) { addBattleLog("ナイトメアを撃破した！", "#0f0"); setTimeout(endBattleWin, 2000); }
@@ -1140,20 +1466,57 @@ function checkBattleEnd() {
 
 function endBattleWin() {
     document.getElementById("battle-modal").style.display = "none";
-    let rewardLogs = 50 * enemyLevel; log_corrector.push({ windowId: "battle", creature: "System(戦闘報酬)", count: rewardLogs, type: "SYSTEM" });
-    enemyLevel++; localStorage.setItem("squirrel_enemy_level", enemyLevel);
-    inventory.shifter++; 
-    if (Object.values(equippedGifts).includes("gift_heal") && playerStats.hp < playerStats.maxHp) {    
+    
+    // ▼ 追加: 春雷イベントと通常バトルで報酬を分ける
+    if (isThunderBattle) {
+        // 経験値(ログ)も大量にもらえる
+        let rewardLogs = 50 * (enemyLevel * 3) * 5; 
+        log_corrector.push({ windowId: "battle", creature: "System(群れ討伐報酬)", count: rewardLogs, type: "SYSTEM" });
+        
+        inventory.shifter += 10; // シフター10個獲得！
+        document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+        
+        addLog(`【EVENT CLEAR】蠢く春雷の群れを完全に沈黙させた！`, "#ffeb3b");
+        addLog(`戦利品として [Dream Shifter] を10個獲得した！`, "#0f0");
+        
+        isThunderBattle = false; // フラグ解除
+    } else {
+        // 通常の勝利処理
+        let rewardLogs = 50 * enemyLevel; 
+        log_corrector.push({ windowId: "battle", creature: "System(戦闘報酬)", count: rewardLogs, type: "SYSTEM" });
+        
+        inventory.shifter++; 
+        document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+        
+        addLog(`BATTLE WIN: ナイトメア撃破。未精算ログを獲得。(次周 Enemy Lv.${enemyLevel + 1})`, "system");
+        addLog(`戦闘報酬として [Dream Shifter] を1つ獲得した！`, "system");
+    }
+
+    // 共通の処理（アマガエル回復、レベルアップ、パッチ取得）
+    if (Object.values(equippedGifts).includes("gift_heal") && playerStats.hp < playerStats.maxHp) {
         let lostHp = playerStats.maxHp - playerStats.hp;
-        let healAmount = Math.max(1, Math.floor(lostHp * 0.1)); // 最低でも1は回復する
+        let healAmount = Math.max(1, Math.floor(lostHp * 0.1));
         playerStats.hp += healAmount;
         addLog(`【GIFT】生命の残滓の効果でHPが ${healAmount} 回復した！`, "system");
-        updateStatsUI([]); // UIに回復を反映
+        updateStatsUI([]); 
     }
-    addLog(`BATTLE WIN: ナイトメア撃破。未精算ログを獲得。(次周 Enemy Lv.${enemyLevel})`, "system");
-    isBattling = false; addLog("SYSTEM: 敵性データからパッチの断片を抽出しました", "system"); showPassiveSelection();
-    document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
-    addLog(`戦闘報酬として [Dream Shifter] を1つ獲得した！`, "system"); // ←追加
+
+    enemyLevel++; localStorage.setItem("squirrel_enemy_level", enemyLevel);
+    isBattling = false; 
+    addLog("SYSTEM: 敵性データからパッチの断片を抽出しました", "system"); 
+    showPassiveSelection();
+}
+
+function endBattleLose() {
+    document.getElementById("battle-modal").style.display = "none";
+    isThunderBattle = false; // ▼ 追加: もし群れに負けた場合もフラグを解除
+    
+    enemyLevel = Math.max(1, Math.floor(enemyLevel / 2) + 1); localStorage.setItem("squirrel_enemy_level", enemyLevel);
+    addLog(`SYSTEM CRASH: 戦闘敗北。全パッチと未精算ログをロスト... (次周 Enemy Lv.${enemyLevel}に低下)`, "chaos");
+    dreamCounter = 0; activePatches = []; calculateStats();
+    playerStats.hp = playerStats.maxHp; updateStatsUI([]); updateVisualState();
+    discardAllDreamWindows(); isBattling = false; isPaused = false; playFinishSound();
+    processHackingQueue(); if(hackQueue.length===0) mainLoopTimer = setInterval(updateCounter, 2500);
 }
 
 function endBattleFlee() {
@@ -1175,16 +1538,6 @@ function endBattleFlee() {
     const oldCounter = dreamCounter; dreamCounter = 0; isBattling = false; isPaused = false;
     updateVisualState(); handleZeroCrossing(oldCounter); processHackingQueue();
     if(hackQueue.length===0) mainLoopTimer = setInterval(updateCounter, 2500);
-}
-
-function endBattleLose() {
-    document.getElementById("battle-modal").style.display = "none";
-    enemyLevel = Math.max(1, Math.floor(enemyLevel / 2) + 1); localStorage.setItem("squirrel_enemy_level", enemyLevel);
-    addLog(`SYSTEM CRASH: 戦闘敗北。全パッチと未精算ログをロスト... (次周 Enemy Lv.${enemyLevel}に低下)`, "chaos");
-    dreamCounter = 0; activePatches = []; calculateStats();
-    playerStats.hp = playerStats.maxHp; updateStatsUI([]); updateVisualState();
-    discardAllDreamWindows(); isBattling = false; isPaused = false; playFinishSound();
-    processHackingQueue(); if(hackQueue.length===0) mainLoopTimer = setInterval(updateCounter, 2500);
 }
 
 function discardAllDreamWindows() {
@@ -1423,8 +1776,11 @@ function generateSubLog(depth) {
              else if(r<0.3) { w.state="EAT"; w.stateTimer=3; text=w.creature+data.eatStart; }
              else text = w.creature + data.normal[Math.floor(Math.random()*data.normal.length)];
         } else {
-            const o = logsObjects[Math.floor(Math.random()*logsObjects.length)]; const a = logsActions[Math.floor(Math.random()*logsActions.length)];
-            text = `${w.creature}が${o}を${a}`;
+            ram = Math.floor(Math.random() * 3)
+            const baseIdx = w.idx * 3;
+            const o = ram
+            const a = ram
+            text = `${w.creature}は${logsObjects[baseIdx + o]}を${logsActions[baseIdx + a]}`;
         }
     }
     const area = document.getElementById(`log-area-${depth}`);
@@ -1437,7 +1793,7 @@ function generateSubLog(depth) {
 function checkAchievements() {
     if (log_corrector.length === 0) return;
     checkCycleReset(); 
-
+    
     isSettling = true;
     const box = document.getElementById("settlement-box"); const countEl = document.getElementById("settlement-count");
     const total = log_corrector.reduce((a,b)=>a+b.count,0);
@@ -1450,7 +1806,7 @@ function checkAchievements() {
     let c = 0; let toothElephantFlag=false, toothHippoFlag=false;
     let am = hackBuffs.achieveMod;
     if (Object.values(equippedGifts).includes("gift_special_log")) {
-        am *= 1.5; // ギフト装備中はさらに1.5倍！
+        am *= 1.5; 
     }
 
     log_corrector.forEach(log => {
@@ -1458,8 +1814,6 @@ function checkAchievements() {
         if (cName !== "System(戦闘報酬)") {
             if (!creatureLogCounts[cName]) creatureLogCounts[cName] = 0;
             creatureLogCounts[cName] += log.count;
-
-            // 条件を満たしたギフトがあれば解放
             giftDatabase.forEach(gift => {
                 if (gift.reqCreature === cName && creatureLogCounts[cName] >= gift.reqCount && !unlockedGifts.includes(gift.id)) {
                     unlockedGifts.push(gift.id);
