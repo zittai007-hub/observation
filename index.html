@@ -384,7 +384,8 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
             <span>Parallel Dream Processor</span>
         </div>
         <div style="display:flex; gap:10px;">
-            <button id="btn-gift">GIFTS</button>
+            <button id="btn-shop" style="border-color:#4caf50; color:#4caf50;">SHOP</button> 
+            <button id="btn-gift">GIFTS</button> 
             <button id="btn-zukan">ACHIEVEMENTS</button>
         </div>
     </div>
@@ -426,6 +427,45 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
     </div>
 </div>
 
+<div id="shop-modal" class="overlay-modal" style="z-index: 6500;">
+    <div style="width: 80%; max-width: 600px; background: #111; border: 4px solid #4caf50; padding: 20px; color: #fff; position: relative; box-shadow: 0 0 20px rgba(76,175,80,0.5);">
+        <div id="shop-close" style="position:absolute; top:10px; right:20px; cursor:pointer; font-size:30px; font-weight:bold; color:#fff;">×</div>
+        <h2 style="text-align:center; border-bottom:2px solid #4caf50; padding-bottom:10px; color:#4caf50; font-family:'Orbitron';">SYSTEM UPGRADE</h2>
+        
+        <div style="text-align:center; margin-bottom:20px; font-size:18px;">
+            所持ログ: <span id="shop-current-logs" style="color:#0f0; font-weight:bold; font-size:24px;">0</span> LOG
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:15px; justify-content:center;">
+            <div class="hud-panel" style="width:45%; background:#222; border-color:#4caf50; color:#fff;">
+                <div style="font-weight:bold; margin-bottom:5px;">基礎攻撃力 (ATK) +1</div>
+                <div style="font-size:12px; color:#aaa; margin-bottom:10px;">コスト: 10 LOG</div>
+                <button class="battle-btn" style="width:100%; font-size:14px; padding:5px;" onclick="buyUpgrade('atk', 10, 1)">強化する</button>
+            </div>
+            <div class="hud-panel" style="width:45%; background:#222; border-color:#4caf50; color:#fff;">
+                <div style="font-weight:bold; margin-bottom:5px;">基礎体力 (MAX HP) +5</div>
+                <div style="font-size:12px; color:#aaa; margin-bottom:10px;">コスト: 15 LOG</div>
+                <button class="battle-btn" style="width:100%; font-size:14px; padding:5px;" onclick="buyUpgrade('hp', 15, 5)">強化する</button>
+            </div>
+            <div class="hud-panel" style="width:45%; background:#222; border-color:#4caf50; color:#fff;">
+                <div style="font-weight:bold; margin-bottom:5px;">基礎速度 (SPD) +2</div>
+                <div style="font-size:12px; color:#aaa; margin-bottom:10px;">コスト: 15 LOG</div>
+                <button class="battle-btn" style="width:100%; font-size:14px; padding:5px;" onclick="buyUpgrade('spd', 15, 2)">強化する</button>
+            </div>
+            
+            <div class="hud-panel" style="width:45%; background:#222; border-color:#0ff; color:#fff;">
+                <div style="font-weight:bold; margin-bottom:5px;">Dream Shifter x1</div>
+                <div style="font-size:12px; color:#aaa; margin-bottom:10px;">コスト: 150 LOG</div>
+                <button class="battle-btn" style="width:100%; font-size:14px; padding:5px; border-color:#0ff; color:#0ff;" onclick="buyItem('shifter', 150)">購入する</button>
+            </div>
+            <div class="hud-panel" style="width:100%; background:#222; border-color:#e91e63; color:#fff;">
+                <div style="font-weight:bold; margin-bottom:5px;">ランダム・パッチ抽出</div>
+                <div style="font-size:12px; color:#aaa; margin-bottom:10px;">コスト: 100 LOG</div>
+                <button class="battle-btn" style="width:100%; font-size:14px; padding:5px; border-color:#e91e63; color:#e91e63;" onclick="buyPatch(100)">抽出する</button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
 // ================================================================
 // 1. DOM要素取得 (エラー回避のため最上部に配置)
@@ -554,6 +594,9 @@ let isThunderBattle = false;
 let isImmortalBuilder = false;
 let currentEventId = null;  
 let lastEventId = null;
+let currentLogs = 0; 
+let playerBaseStats = { maxHp: 100, atk: 10, spd: 10 }; 
+let isFirstLoad = true;
 
 // ================================================================
 // 4. ハッキングカード システム
@@ -859,6 +902,23 @@ function loadSavedData() {
     if (localStorage.getItem("squirrel_armor_stacks")) counterArmorStacks = parseInt(localStorage.getItem("squirrel_armor_stacks"));
     if (localStorage.getItem("squirrel_immortal")) isImmortalBuilder = localStorage.getItem("squirrel_immortal") === "true";
     if (localStorage.getItem("squirrel_last_event")) lastEventId = localStorage.getItem("squirrel_last_event");
+    if (localStorage.getItem("squirrel_current_logs")) currentLogs = parseInt(localStorage.getItem("squirrel_current_logs"), 10);
+    if (localStorage.getItem("squirrel_base_stats")) playerBaseStats = JSON.parse(localStorage.getItem("squirrel_base_stats"));
+    if (localStorage.getItem("squirrel_pending_event")) {
+        let pendingEvent = localStorage.getItem("squirrel_pending_event");
+        currentEventId = pendingEvent;
+        isPaused = true; // 裏でゲームが進まないように時間を止める
+        
+        // 画面の描画が落ち着いた直後に強制的にモーダルを開く
+        setTimeout(() => {
+            showEventModal(pendingEvent);
+            addLog("【SYSTEM】異常な切断を検知。中断されたイベントを再開します。", "chaos");
+        }, 500);
+    }
+    if (localStorage.getItem("squirrel_shifter")) {
+        inventory.shifter = parseInt(localStorage.getItem("squirrel_shifter"), 10);
+        document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+    }
     activeHackingCardId = localStorage.getItem("squirrel_active_hack") || null;
     
     const savedPatches = localStorage.getItem("squirrel_active_patches");
@@ -873,10 +933,21 @@ restoreHackingBuff();
 function checkCycleReset() {
     const newId = getCurrentCycleId();
     if (currentCycleId !== newId) {
+        isBattling = false;
+        isPaused = false;
+        isThunderBattle = false;
+        document.getElementById("battle-modal").style.display = "none";
+        document.getElementById("event-modal").style.display = "none";
+        document.getElementById("item-modal").style.display = "none";
+        document.getElementById("shop-modal").style.display = "none";
         currentCycleId = newId; localStorage.setItem("squirrel_cycle_id", currentCycleId);
         totalLogsAllTime = 0; enemyLevel = 1; currentHackingIndex = 0; activeHackingCardId = null; activePatches = [];
         achievementProgress = { extinctionCount: 0, huntTiger: false, huntLion: false, jumpRabbit: false, jumpFrog: false, jumpKangaroo: false, tongueGiraffe: false, tongueBear: false };
         unlockedAchievements.clear();
+        currentLogs = 0;
+        playerBaseStats = { maxHp: 100, atk: 10, spd: 10 };
+        localStorage.removeItem("squirrel_current_logs");
+        localStorage.removeItem("squirrel_base_stats");
         
         saveProgress();
         instaKillArrows = 0;
@@ -906,7 +977,7 @@ function checkCycleReset() {
         checkHackingEvent();
     }
 }
-
+setInterval(checkCycleReset, 60000);
 // ================================================================
 // 6. UI制御・ステータス計算
 // ================================================================
@@ -924,11 +995,20 @@ function calculateStats() {
     const patchIds = activePatches.map(p => p.id);
     localStorage.setItem("squirrel_active_patches", JSON.stringify(patchIds));
 
-    let oldMaxHp = playerStats.maxHp || 100;
-    let baseAtk = Math.max(10, Math.floor(totalLogsAllTime * 0.1));
+    let oldMaxHp = playerStats.maxHp || playerBaseStats.maxHp;
     let currentHp = playerStats.hp;
-
-    playerStats = { maxHp: 100, hp: currentHp, atk: baseAtk, spd: 10, critRate: 5, critDmg: 1.5 };
+    if (isFirstLoad && localStorage.getItem("squirrel_current_hp")) {
+        currentHp = parseInt(localStorage.getItem("squirrel_current_hp"), 10);
+        isFirstLoad = false; // 以降は通常のHP計算に切り替え
+    }
+    playerStats = { 
+        maxHp: playerBaseStats.maxHp, 
+        hp: currentHp, 
+        atk: playerBaseStats.atk, 
+        spd: playerBaseStats.spd, 
+        critRate: 5, 
+        critDmg: 1.5 
+    };
 
     let attrCount = { "陸": 0, "海": 0, "虫": 0, "草": 0 };
     let activeSets = [];
@@ -955,6 +1035,9 @@ function calculateStats() {
         playerStats.hp = 1;
         playerStats.spd = 10; 
     }
+
+    localStorage.setItem("squirrel_shifter", inventory.shifter);
+    localStorage.setItem("squirrel_current_hp", playerStats.hp);
     updateStatsUI(activeSets);
 }
 
@@ -999,6 +1082,7 @@ function triggerRandomEvent() {
     currentEventId = eventPool[Math.floor(Math.random() * eventPool.length)];
     localStorage.setItem("squirrel_last_event", currentEventId); 
     
+    localStorage.setItem("squirrel_pending_event", currentEventId);
     showEventModal(currentEventId);
 }
 
@@ -1142,7 +1226,7 @@ function showEventModal(type) {
     }
 }
 function closeEventModal() {
-    document.getElementById("event-modal").style.display = "none"; isPaused = false; processHackingQueue();
+    document.getElementById("event-modal").style.display = "none"; isPaused = false; localStorage.removeItem("squirrel_pending_event"); processHackingQueue();
     if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
 }
 
@@ -1151,7 +1235,7 @@ function updateLogCountUI() {
     calculateStats(); checkHackingEvent(); 
 }
 
-function Oldman(choiceIsHead) {
+function resolveOldman(choiceIsHead) {
     const isHead = Math.random() < 0.5; const desc = document.getElementById("event-desc"); const choices = document.getElementById("event-choices"); choices.innerHTML = "";
     const btnClose = document.createElement("button"); btnClose.className="event-btn"; btnClose.textContent="立ち去る"; btnClose.onclick=closeEventModal; choices.appendChild(btnClose);
     if (choiceIsHead === isHead) {
@@ -1246,6 +1330,7 @@ function resolveShin(isDiscard) {
     } else {
         addLog(`【EVENT】静寂に魅入られ、意識が深く沈んでいく…！`, "chaos");
         document.getElementById("event-modal").style.display = "none";
+        localStorage.removeItem("squirrel_pending_event");
         dreamCounter = -14; 
         updateVisualState(); manageDreamWindows(); 
         isPaused = false; processHackingQueue(); 
@@ -1445,6 +1530,7 @@ function enemyAttack() {
     } 
     else {
         playerStats.hp -= dmg; 
+        localStorage.setItem("squirrel_current_hp", playerStats.hp);
         addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
     }
 
@@ -1799,8 +1885,10 @@ function checkAchievements() {
     const total = log_corrector.reduce((a,b)=>a+b.count,0);
     
     totalLogsAllTime += total;
+    currentLogs += total;
     localStorage.setItem("squirrel_total_logs", totalLogsAllTime);
-    document.getElementById("hud-total-logs").textContent = totalLogsAllTime;
+    localStorage.setItem("squirrel_current_logs", currentLogs);
+    document.getElementById("hud-total-logs").textContent = currentLogs;
     calculateStats(); 
 
     let c = 0; let toothElephantFlag=false, toothHippoFlag=false;
@@ -1992,6 +2080,66 @@ function closeTutorial() {
     }
 }
 
+const shopModal = document.getElementById("shop-modal");
+
+document.getElementById("btn-shop").onclick = () => {
+    initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    document.getElementById("shop-current-logs").textContent = currentLogs;
+    shopModal.style.display = "flex";
+};
+document.getElementById("shop-close").onclick = () => shopModal.style.display = "none";
+
+// ステータスのアップグレード
+function buyUpgrade(type, cost, amount) {
+    if (currentLogs >= cost) {
+        currentLogs -= cost;
+        if (type === 'atk') playerBaseStats.atk += amount;
+        if (type === 'hp') { playerBaseStats.maxHp += amount; playerStats.hp += amount; }
+        if (type === 'spd') playerBaseStats.spd += amount;
+        
+        saveShopData();
+        addLog(`【SHOP】ログを消費し、基礎${type.toUpperCase()}が ${amount} 上昇した！`, "system");
+    } else {
+        alert("ログが足りません！");
+    }
+}
+
+// アイテムの購入
+function buyItem(itemType, cost) {
+    if (currentLogs >= cost) {
+        currentLogs -= cost;
+        if (itemType === 'shifter') {
+            inventory.shifter++;
+            document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+            addLog(`【SHOP】[Dream Shifter] を1つ購入した！`, "system");
+        }
+        saveShopData();
+    } else {
+        alert("ログが足りません！");
+    }
+}
+
+// パッチの購入
+function buyPatch(cost) {
+    if (currentLogs >= cost) {
+        currentLogs -= cost;
+        saveShopData();
+        addLog(`【SHOP】ログを消費し、パッチの抽出を開始します…`, "system");
+        shopModal.style.display = "none";
+        giveRandomPatch(); // 既存のランダムパッチ獲得関数を流用
+    } else {
+        alert("ログが足りません！");
+    }
+}
+
+// 購入後のUIとデータのセーブ
+function saveShopData() {
+    localStorage.setItem("squirrel_current_logs", currentLogs);
+    localStorage.setItem("squirrel_base_stats", JSON.stringify(playerBaseStats));
+    document.getElementById("hud-total-logs").textContent = currentLogs;
+    document.getElementById("shop-current-logs").textContent = currentLogs;
+    calculateStats();
+}
 // 開始
 addLog("システム起動...");
 initAudio();
