@@ -842,9 +842,14 @@ function checkHackingEvent() {
 }
 
 function processHackingQueue() {
-    if (!isPaused && hackQueue.length > 0) {
+    if (hackQueue.length > 0) {
         const rank = hackQueue.shift();
         triggerHackingEvent(rank);
+    } else {
+        clearInterval(mainLoopTimer);
+        if (!isPaused && !isBattling && !isSettling) {
+            mainLoopTimer = setInterval(updateCounter, 2500);
+        }
     }
 }
 
@@ -880,19 +885,17 @@ function selectHackingCard(card) {
         activeHackingCardId = null;
         localStorage.removeItem("squirrel_active_hack");
     }
-    
-    card.apply(); 
-    
+
+    card.apply();
+
     calculateStats();
-    reapplyWindowTimers(); 
-    manageDreamWindows(); 
-    
+    reapplyWindowTimers();
+    manageDreamWindows();
+
     document.getElementById("hacking-modal").style.display = "none";
     isPaused = false;
     updateProgressBar();
-    
-    if (hackQueue.length > 0) processHackingQueue();
-    else if (!isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+    processHackingQueue();
 }
 function giveRandomPatch() {
     let pool = patchDatabase.filter(p => !p.exclusive);
@@ -1312,8 +1315,8 @@ function showEventModal(type) {
     }
 }
 function closeEventModal() {
-    document.getElementById("event-modal").style.display = "none"; isPaused = false; localStorage.removeItem("squirrel_pending_event"); processHackingQueue();
-    if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+    document.getElementById("event-modal").style.display = "none"; isPaused = false; localStorage.removeItem("squirrel_pending_event");
+    processHackingQueue(); 
 }
 
 function updateLogCountUI() {
@@ -1395,7 +1398,8 @@ function resolveMask() {
     document.getElementById("event-modal").style.display = "none";
     const targetDepth = Math.random() < 0.5 ? 14 : -14; addLog(`「ほな、またな！」 仮面の力で深度が強制的に ${targetDepth} にされた！`, "chaos");
     dreamCounter = targetDepth; updateVisualState(); manageDreamWindows(); 
-    isPaused = false; processHackingQueue(); if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+    isPaused = false; 
+    processHackingQueue(); 
 }
 
 function resolveGoldenEye() {
@@ -1434,8 +1438,8 @@ function resolveShin(isDiscard) {
         localStorage.removeItem("squirrel_pending_event");
         dreamCounter = -14; 
         updateVisualState(); manageDreamWindows(); 
-        isPaused = false; processHackingQueue(); 
-        if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+        isPaused = false; 
+        processHackingQueue(); 
     }
 }
 
@@ -1768,7 +1772,7 @@ function endBattleLose() {
     dreamCounter = 0; activePatches = []; calculateStats();
     playerStats.hp = playerStats.maxHp; updateStatsUI([]); updateVisualState();
     discardAllDreamWindows(); isBattling = false; isPaused = false; playFinishSound();
-    processHackingQueue(); if(hackQueue.length===0) mainLoopTimer = setInterval(updateCounter, 2500);
+    processHackingQueue();
 }
 
 function endBattleFlee() {
@@ -1789,8 +1793,8 @@ function endBattleFlee() {
     }
     
     const oldCounter = dreamCounter; dreamCounter = 0; isPaused = false;
-    updateVisualState(); handleZeroCrossing(oldCounter); processHackingQueue();
-    if(hackQueue.length===0) mainLoopTimer = setInterval(updateCounter, 2500);
+    updateVisualState(); handleZeroCrossing(oldCounter); 
+    processHackingQueue(); 
 }
 
 function discardAllDreamWindows() {
@@ -1817,7 +1821,7 @@ function showPassiveSelection() {
             else {
                 activePatches.push(p); addLog(`Patch Installed: ${p.name}`, "system");
                 calculateStats(); document.getElementById("passive-modal").style.display = "none"; isPaused = false;
-                processHackingQueue(); if(hackQueue.length===0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+                processHackingQueue(); 
             }
         };
         passiveChoices.appendChild(div);
@@ -1834,7 +1838,7 @@ function showReplaceModal() {
             addLog(`Patch Replaced: ${p.name} -> ${pendingPatch.name}`, "system");
             activePatches[index] = pendingPatch; pendingPatch = null; calculateStats();
             replaceModal.style.display = "none"; document.getElementById("passive-modal").style.display = "none"; isPaused = false;
-            processHackingQueue(); if(hackQueue.length===0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+            processHackingQueue(); 
         };
         replaceChoices.appendChild(div);
     });
@@ -1844,7 +1848,8 @@ function showReplaceModal() {
 function cancelReplace() {
     pendingPatch = null; replaceModal.style.display = "none";
     if(document.getElementById("passive-modal").style.display !== "flex") {
-        isPaused = false; processHackingQueue(); if(hackQueue.length===0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
+        isPaused = false; 
+        processHackingQueue(); 
     }
 }
 
