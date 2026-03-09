@@ -238,7 +238,34 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
 @keyframes slideUp { from{transform:translate(-50%,20px);opacity:0;} to{transform:translate(-50%,0);opacity:1;} }
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #f0f0f0; border-left: 1px solid #ccc; }
-::-webkit-scrollbar-thumb { background: #333; }
+::-webkit-scrollbar-thumb { background: #818181; }
+body::after {
+    content: ""; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: linear-gradient(rgba(233, 226, 226, 0) 50%, rgba(211, 211, 211, 0.25) 50%), 
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 100% 3px, 3px 100%;
+    z-index: 9999; pointer-events: none; /* クリックを阻害しない */
+}
+
+/* ---- アニメーション (ポップアップ & 画面揺れ) ---- */
+.damage-popup {
+    position: fixed; font-family: 'Orbitron'; font-size: 26px; font-weight: 900;
+    text-shadow: 0px 0px 5px #000, 2px 2px 0px #000; z-index: 10000; pointer-events: none;
+    animation: floatUpFade 1s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+@keyframes floatUpFade {
+    0% { transform: translateY(0) scale(0.5); opacity: 1; }
+    30% { transform: translateY(-30px) scale(1.2); opacity: 1; }
+    100% { transform: translateY(-60px) scale(1); opacity: 0; }
+}
+@keyframes screen-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px) rotate(-1deg); }
+    40% { transform: translateX(5px) rotate(1deg); }
+    60% { transform: translateX(-3px) rotate(0deg); }
+    80% { transform: translateX(3px) rotate(0deg); }
+}
+.shake-hard { animation: screen-shake 0.3s ease-in-out; }
 </style>
 </head>
 <body>
@@ -256,9 +283,13 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
         <div id="hud-status-text" style="font-size:10px; margin-top:2px;">NEUTRAL</div>
     </div>
 
-    <div class="hud-panel" style="flex: 0 0 140px; text-align:center;">
-        <div class="hud-label">手持ちのログ</div>
-        <div id="hud-total-logs" class="hud-value">0</div>
+<div class="hud-panel" style="flex: 0 0 140px; text-align:center; position:relative;">
+        <div class="hud-label" style="color:#b59410;">手持ちのログ</div>
+        <div id="hud-total-logs" class="hud-value" style="color:#555;">0</div>
+        <div style="width: 100%; height: 6px; background: #333; margin-top: 5px; border: 1px solid #483c0e; border-radius: 2px;">
+            <div id="hack-progress-bar" style="height: 100%; width: 0%; background: #f2c822; transition: width 0.3s;"></div>
+        </div>
+        <div id="hack-progress-text" style="font-size:9px; color:#898989; margin-top:2px;">NEXT: 200</div>
     </div>
 
     <div class="hud-panel" style="flex: 0 0 140px;">
@@ -491,10 +522,10 @@ const patchDatabase = [
     { id: "insect_1", name: "複眼(虫)", attr: "虫", css: "attr-insect", icon: "🦋", desc: "単体効果: クリティ率 +5%", apply: (st, b=1) => st.critRate += (5*b) },
     { id: "insect_2", name: "猛毒の針(虫)", attr: "虫", css: "attr-insect", icon: "🐝", desc: "単体効果: クリティ率 +8%", apply: (st, b=1) => st.critRate += (8*b) },
     { id: "insect_3", name: "蟷螂の鎌(虫)", attr: "虫", css: "attr-insect", icon: "🦗", desc: "単体効果: クリティ率 +12%", apply: (st, b=1) => st.critRate += (12*b) },
-    { id: "plant_1", name: "光合成葉(草)", attr: "草", css: "attr-plant", icon: "🌿", desc: "単体効果: 最大体力 +50", apply: (st, b=1) => st.maxHp += (50*b) },
-    { id: "plant_2", name: "深き根(草)", attr: "草", css: "attr-plant", icon: "🌳", desc: "単体効果: 最大体力 +80", apply: (st, b=1) => st.maxHp += (80*b) },
-    { id: "plant_3", name: "大樹の恵み(草)", attr: "草", css: "attr-plant", icon: "🌲", desc: "単体効果: 最大体力 +150", apply: (st, b=1) => st.maxHp += (150*b) }
-];
+    { id: "plant_1", name: "光合成葉(草)", attr: "草", css: "attr-plant", icon: "🌿", desc: "単体効果: 最大体力 +25", apply: (st, b=1) => st.maxHp += (25*b) },
+    { id: "plant_2", name: "深き根(草)", attr: "草", css: "attr-plant", icon: "🌳", desc: "単体効果: 最大体力 +40", apply: (st, b=1) => st.maxHp += (40*b) },
+    { id: "plant_3", name: "大樹の恵み(草)", attr: "草", css: "attr-plant", icon: "🌲", desc: "単体効果: 最大体力 +75", apply: (st, b=1) => st.maxHp += (75*b) }
+]
 
 function getCreatureType(index) {
     if (index <= 41) return "LAND"; if (index <= 57) return "WATER"; if (index <= 77) return "INSECT"; return "PLANT";
@@ -584,6 +615,7 @@ let lastEventId = null;
 let currentLogs = 0; 
 let playerBaseStats = { maxHp: 100, atk: 10, spd: 10 }; 
 let isFirstLoad = true;
+let remainingPlayerActions = 0;
 
 // ================================================================
 // 4. ハッキングカード システム
@@ -825,6 +857,7 @@ function selectHackingCard(card) {
     
     document.getElementById("hacking-modal").style.display = "none";
     isPaused = false;
+    updateProgressBar();
     
     if (hackQueue.length > 0) processHackingQueue();
     else if (!isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
@@ -956,11 +989,12 @@ function checkCycleReset() {
         reapplyWindowTimers();
         addLog("【SYSTEM】サイクルが更新されました。すべてのデータが初期化されました。", "system");
         checkHackingEvent();
+        updateProgressBar();
     }
 }
 setInterval(checkCycleReset, 60000);
 
-document.getElementById("hud-total-logs").textContent = totalLogsAllTime;
+document.getElementById("hud-total-logs").textContent = currentLogs;
 
 function addLog(text, type="") {
     const div = document.createElement("div"); div.className = `log-line ${type}`;
@@ -996,12 +1030,19 @@ function calculateStats() {
 
     if (attrCount["陸"] >= 2) { playerStats.critDmg += 0.5; activeSets.push({t: "陸2", css: "land", d: "C.DMG+0.5x"}); }
     if (attrCount["陸"] >= 3) { playerStats.critDmg += 1.0; activeSets.push({t: "陸3", css: "land", d: "C.DMG+1.0x"}); }
+    if (attrCount["陸"] >= 5) { playerStats.critDmg += 5.0; activeSets.push({t: "陸5", css: "land", d: "C.DMG+5.0x"}); } 
+
     if (attrCount["海"] >= 2) { playerStats.spd += 20; activeSets.push({t: "海2", css: "sea", d: "SPD+20"}); }
     if (attrCount["海"] >= 3) { playerStats.spd += 30; activeSets.push({t: "海3", css: "sea", d: "SPD+30(2行動)"}); }
+    if (attrCount["海"] >= 5) { playerStats.spd += 100; activeSets.push({t: "海5", css: "sea", d: "SPD+100(超速)"}); } 
+
     if (attrCount["虫"] >= 2) { playerStats.critRate += 20; activeSets.push({t: "虫2", css: "insect", d: "CRIT+20%"}); }
     if (attrCount["虫"] >= 3) { playerStats.critRate += 30; activeSets.push({t: "虫3", css: "insect", d: "CRIT+30%"}); }
-    if (attrCount["草"] >= 2) { playerStats.maxHp += 100; activeSets.push({t: "草2", css: "plant", d: "HP+100"}); }
-    if (attrCount["草"] >= 3) { playerStats.maxHp += 200; activeSets.push({t: "草3", css: "plant", d: "HP+200(回復)"}); }
+    if (attrCount["虫"] >= 5) { playerStats.critRate += 50; activeSets.push({t: "虫5", css: "insect", d: "CRIT+50%"}); } 
+
+    if (attrCount["草"] >= 2) { playerStats.maxHp += 50; activeSets.push({t: "草2", css: "plant", d: "HP+50"}); }
+    if (attrCount["草"] >= 3) { playerStats.maxHp += 100; activeSets.push({t: "草3", css: "plant", d: "HP+100"}); }
+    if (attrCount["草"] >= 5) { playerStats.maxHp += 200; activeSets.push({t: "草5", css: "plant", d: "HP+200(回復)"}); } 
 
     playerStats.critRate += hackBuffs.critAdd;
 
@@ -1480,6 +1521,8 @@ function addBattleLog(text, color="#fff") {
 
 function battleAction(type) {
     document.getElementById("battle-commands").style.display = "none"; 
+    remainingPlayerActions = 0; // ▼ 追加: 前の戦闘の行動回数が残らないようリセット
+    
     if (type === 'attack') { addBattleLog("戦闘開始！オートで進行します...", "#0ff"); isPlayerTurn = playerStats.spd >= enemyStats.spd; setTimeout(processTurn, 800); } 
     else if (type === 'flee') {
         const fleeChance = Math.min(0.8, (playerStats.spd / enemyStats.spd) * 0.4);
@@ -1491,35 +1534,74 @@ function battleAction(type) {
         localStorage.setItem("squirrel_insta_arrows", instaKillArrows);
         addBattleLog("【眩い矢】を放った！", "#ffeb3b");
         addBattleLog("光が敵を貫く！ ナイトメアを一撃で消し飛ばした！", "#0f0");
-        enemyStats.hp = 0;
+        enemyStats.hp = 0; 
         updateBattleUI();
         setTimeout(checkBattleEnd, 800);
-}
+    }
 }
 
 function processTurn() {
     if (playerStats.hp <= 0 || enemyStats.hp <= 0) return;
-    if (isPlayerTurn) playerAttack(); else enemyAttack();
-    isPlayerTurn = !isPlayerTurn; 
+    
+    if (isPlayerTurn) {
+        if (remainingPlayerActions === 0) {
+            let maxActions = Math.max(1, Math.floor(playerStats.spd / enemyStats.spd));
+            remainingPlayerActions = Math.floor(Math.random() * maxActions) + 1;
+            
+            if (maxActions > 1) {
+                addBattleLog(`【連続行動】圧倒的な速度差！ 最大 ${maxActions} 回の連続攻撃チャンス！`, "#0ff");
+            }
+        }
+        
+        playerAttack();
+        remainingPlayerActions--;
+        if (remainingPlayerActions > 0 && enemyStats.hp > 0) {
+            setTimeout(processTurn, 800);
+            return; // ここで処理を止めてループさせる
+        } else {
+            // 行動終了、敵のターンへ
+            remainingPlayerActions = 0;
+            isPlayerTurn = false;
+        }
+    } else {
+        enemyAttack();
+        isPlayerTurn = true;
+    }
+    
     if (playerStats.hp <= 0 || enemyStats.hp <= 0) setTimeout(checkBattleEnd, 800); else setTimeout(processTurn, 800); 
 }
 
 function playerAttack() {
-    let dmg = playerStats.atk; let isCrit = Math.random() < (playerStats.critRate / 100); let superCrit = (Math.random() < 0.05)
-    if (isCrit) { 
+    let dmg = playerStats.atk; 
+    let isCrit = Math.random() < (playerStats.critRate / 100); 
+    
+    // ▼ 修正: スーパークリティカルの発生率を計算（ギフトの5% ＋ 100%超過分のCRT率）
+    let baseSuperCritChance = Object.values(equippedGifts).includes("gift_superlucky") ? 0.05 : 0;
+    let excessCritChance = Math.max(0, playerStats.critRate - 100) / 100;
+    let superCritChance = baseSuperCritChance + excessCritChance;
+    
+    let isSuperCrit = isCrit && (Math.random() < superCritChance);
+
+    if (isSuperCrit) {
+        dmg = Math.floor(dmg * playerStats.critDmg * 2);
+        addBattleLog(`プレイヤーの攻撃！ スーパークリティカル！！ 敵に ${dmg} のダメージ！`, "#ff0");
+    } else if (isCrit) { 
         dmg = Math.floor(dmg * playerStats.critDmg); 
-        if (Object.values(equippedGifts).includes("gift_superlucky") && Math.random() < 0.05) {
-            dmg = dmg * 2; 
-            addBattleLog(`プレイヤーの攻撃！ スーパークリティカル！！ 敵に ${dmg} のダメージ！`, "#ff0");
-        } else {
-            addBattleLog(`プレイヤーの攻撃！ クリティカル！！ 敵に ${dmg} のダメージ！`, "#ff0");
-        }
+        addBattleLog(`プレイヤーの攻撃！ クリティカル！！ 敵に ${dmg} のダメージ！`, "#ff0");
     } else {
         addBattleLog(`プレイヤーの攻撃！ 敵に ${dmg} のダメージ！`);
     }
+    
     enemyStats.hp -= dmg;
+    spawnPopup(`-${dmg}`, isSuperCrit ? "#ffeb3b" : "#fff", "b-enemy-hp-text");
     let plantCount = activePatches.filter(p => p.attr === "草").length;
-    if (plantCount >= 3) { let heal = Math.floor(playerStats.maxHp * 0.1); playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + heal); addBattleLog(`[草3セット効果] 体力が ${heal} 回復した！`, "#0f0"); }
+    if (plantCount >= 5) { 
+        let heal = Math.floor(playerStats.maxHp * 0.1); 
+        playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + heal); 
+        spawnPopup(`+${heal}`, "#0f0", "b-player-hp-text");
+        addBattleLog(`[草5セット効果] 大地の恵みで体力が ${heal} 回復した！`, "#0f0"); 
+    }
+    
     updateBattleUI();
 }
 function enemyAttack() {
@@ -1535,8 +1617,8 @@ function enemyAttack() {
         playerStats.hp -= dmg; 
         localStorage.setItem("squirrel_current_hp", playerStats.hp);
         addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
+        spawnPopup(`-${dmg}`, "#f55", "b-player-hp-text");
     }
-
     if (counterArmorStacks > 0) {
         counterArmorStacks--;
         localStorage.setItem("squirrel_armor_stacks", counterArmorStacks);
@@ -1544,6 +1626,7 @@ function enemyAttack() {
         enemyStats.hp -= counterDmg;
         
         addBattleLog(`【反撃アーマー】受けた衝撃を反射！ 敵に ${counterDmg} のダメージ！ (残り${counterArmorStacks}層)`, "#ff9800");
+        spawnPopup(`-${counterDmg}`, "#ff9800", "b-enemy-hp-text");
     }
 
     updateBattleUI();
@@ -1735,6 +1818,8 @@ function updateCounter() {
 
     checkCycleReset();
     const oldCounter = dreamCounter; let delta = Math.floor(Math.random() * 3) - 1; 
+    
+    // 軛の鋲（ギフト）の効果
     if (Object.values(equippedGifts).includes("gift_stabilizer")) {
         if (dreamCounter >= 12) {
             let r = Math.random();
@@ -1759,7 +1844,18 @@ function updateCounter() {
             document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
             addLog("【GIFT】夢の滑空の効果で [Dream Shifter] を1つ発見した！", "hack");
         }
-        if (totalDepthChanges >= 30) { totalDepthChanges = 0; startBattle(); return; }
+        
+        // ▼ 修正: 遭遇戦の判定部分
+        if (totalDepthChanges >= 30) { 
+            // 深度0（現実・精算時）に到着した瞬間はバトルを発生させず、次回に持ち越す
+            if (dreamCounter !== 0) {
+                totalDepthChanges = 0; 
+                updateVisualState();  // 画面の数字を正しく更新！
+                manageDreamWindows(); // ウィンドウも正しく開閉！
+                startBattle(); 
+                return; 
+            }
+        }
     }
 
     if (dreamCounter < 0 && delta !== 0 && !isBattling && !isPaused) {
@@ -1918,6 +2014,7 @@ function checkAchievements() {
     localStorage.setItem("squirrel_current_logs", currentLogs);
     document.getElementById("hud-total-logs").textContent = currentLogs;
     calculateStats(); 
+    updateProgressBar();
 
     let c = 0; let toothElephantFlag=false, toothHippoFlag=false;
     let am = hackBuffs.achieveMod;
@@ -2170,6 +2267,7 @@ function saveShopData() {
 addLog("システム起動...");
 initAudio();
 calculateStats(); 
+updateProgressBar();
 
 // ★ 追加: チュートリアル表示の判定
 if (!localStorage.getItem("squirrel_tutorial_seen")) {
@@ -2180,6 +2278,65 @@ if (!localStorage.getItem("squirrel_tutorial_seen")) {
     if (!isPaused) mainLoopTimer = setInterval(updateCounter, 2500);
 }
 
+// ================================================================
+// エフェクト & UIアニメーション制御
+// ================================================================
+function spawnPopup(text, color, targetElementId) {
+    const target = document.getElementById(targetElementId);
+    if (!target) return;
+    
+    const rect = target.getBoundingClientRect();
+    const popup = document.createElement("div");
+    popup.className = "damage-popup";
+    popup.style.color = color;
+    popup.textContent = text;
+    
+    // ターゲットの少し上・少しランダムな横位置に出現
+    const offsetX = (Math.random() - 0.5) * 40;
+    popup.style.left = `${rect.left + rect.width / 2 + offsetX}px`;
+    popup.style.top = `${rect.top}px`;
+    
+    document.body.appendChild(popup);
+    setTimeout(() => popup.remove(), 1000);
+}
+
+function triggerShake() {
+    const container = document.getElementById("container");
+    container.classList.remove("shake-hard");
+    void container.offsetWidth; // アニメーションをリセット
+    container.classList.add("shake-hard");
+    setTimeout(() => container.classList.remove("shake-hard"), 300);
+}
+
+function updateProgressBar() {
+    const bar = document.getElementById("hack-progress-bar");
+    const text = document.getElementById("hack-progress-text");
+    if (!bar || !text) return;
+    
+    if (currentHackingIndex < hackingThresholds.length) {
+        const nextThreshold = hackingThresholds[currentHackingIndex].log;
+        const prevThreshold = currentHackingIndex > 0 ? hackingThresholds[currentHackingIndex - 1].log : 0;
+        const currentProgress = totalLogsAllTime - prevThreshold;
+        const required = nextThreshold - prevThreshold;
+        const percent = Math.min(100, Math.max(0, (currentProgress / required) * 100));
+        
+        bar.style.width = `${percent}%`;
+        bar.style.background = "#b59410";
+        text.textContent = `NEXT: ${nextThreshold}`;
+    } else {
+        bar.style.width = `100%`;
+        bar.style.background = `#0f0`;
+        text.textContent = `MAX RANK`;
+    }
+}
+function updateLogCountUI() {
+    localStorage.setItem("squirrel_total_logs", totalLogsAllTime); 
+    localStorage.setItem("squirrel_current_logs", currentLogs);
+    document.getElementById("hud-total-logs").textContent = currentLogs;
+    
+    calculateStats(); checkHackingEvent(); 
+    updateProgressBar(); // ▼ 追加: ログが増減するたびにゲージを更新！
+}
 </script>
 </body>
 </html>
