@@ -1303,18 +1303,14 @@ function showEventModal(type) {
             updateJammerUI();
             localStorage.setItem("squirrel_jammer", inventory.jammer);
             addLog("【SYSTEM】Signal Jammerを使用し、イベントを安全にスキップした。", "system");
-    
-            localStorage.removeItem("squirrel_pending_event");
-            closeEventModal();
-            };
-            localStorage.setItem("squirrel_jammer", inventory.jammer);
-            addLog("【SYSTEM】Signal Jammerを使用し、イベントを安全にスキップした。", "system");
-
+            
             localStorage.removeItem("squirrel_pending_event");
             closeEventModal();
         };
+        
         choices.appendChild(btnSkip);
     }
+}
 function closeEventModal() {
     document.getElementById("event-modal").style.display = "none"; isPaused = false; localStorage.removeItem("squirrel_pending_event"); processHackingQueue();
     if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
@@ -2457,7 +2453,7 @@ function updateLogCountUI() {
     document.getElementById("hud-total-logs").textContent = currentLogs;
     
     calculateStats(); checkHackingEvent(); 
-    updateProgressBar(); 
+    updateProgressBar(); // ▼ 追加: ログが増減するたびにゲージを更新！
 }
 function updateJammerUI() {
     const el = document.getElementById("hud-jammer-count");
