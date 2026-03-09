@@ -292,7 +292,7 @@ body::after {
         <div id="hack-progress-text" style="font-size:9px; color:#898989; margin-top:2px;">NEXT: 200</div>
     </div>
 
-    <div class="hud-panel" style="flex: 0 0 140px;">
+    <div class="hud-panel" style="flex: 0 0 140px; overflow-y: auto;">
         <div class="hud-label">INVENTORY</div>
         <div class="item-slot" title="Dream Shifter" onclick="openItemModal()">
             <span class="item-icon">🧬</span>
@@ -301,8 +301,14 @@ body::after {
                 <div id="hud-shifter-count" class="item-qty">x0</div>
             </div>
         </div>
+        <div class="item-slot" title="Signal Jammer">
+            <span class="item-icon">🔇</span>
+            <div>
+                <div style="font-size:10px;">Signal Jammer</div>
+                <div id="hud-jammer-count" class="item-qty">x0</div>
+            </div>
+        </div>
     </div>
-
     <div class="hud-panel" id="stats-panel">
         <div class="stats-row">
             <div class="stat-item">ATK: <span id="stat-atk">0</span></div>
@@ -476,6 +482,11 @@ body::after {
                 <div style="font-size:12px; color:#aaa; margin-bottom:10px;">コスト: 150 LOG</div>
                 <button class="battle-btn" style="width:100%; font-size:14px; padding:5px; border-color:#0ff; color:#0ff;" onclick="buyItem('shifter', 150)">購入する</button>
             </div>
+            <div class="hud-panel" style="width:45%; background:#222; border-color:#9c27b0; color:#fff;">
+                <div style="font-weight:bold; margin-bottom:5px;">Signal Jammer x1</div>
+                <div style="font-size:12px; color:#aaa; margin-bottom:10px;">コスト: 100 LOG</div>
+                <button class="battle-btn" style="width:100%; font-size:14px; padding:5px; border-color:#9c27b0; color:#9c27b0;" onclick="buyItem('jammer', 100)">購入する</button>
+            </div>
             <div class="hud-panel" style="width:100%; background:#222; border-color:#e91e63; color:#fff;">
                 <div style="font-weight:bold; margin-bottom:5px;">ランダム・パッチ抽出</div>
                 <div style="font-size:12px; color:#aaa; margin-bottom:10px;">コスト: 100 LOG</div>
@@ -524,7 +535,11 @@ const patchDatabase = [
     { id: "insect_3", name: "蟷螂の鎌(虫)", attr: "虫", css: "attr-insect", icon: "🦗", desc: "単体効果: クリティ率 +12%", apply: (st, b=1) => st.critRate += (12*b) },
     { id: "plant_1", name: "光合成葉(草)", attr: "草", css: "attr-plant", icon: "🌿", desc: "単体効果: 最大体力 +25", apply: (st, b=1) => st.maxHp += (25*b) },
     { id: "plant_2", name: "深き根(草)", attr: "草", css: "attr-plant", icon: "🌳", desc: "単体効果: 最大体力 +40", apply: (st, b=1) => st.maxHp += (40*b) },
-    { id: "plant_3", name: "大樹の恵み(草)", attr: "草", css: "attr-plant", icon: "🌲", desc: "単体効果: 最大体力 +75", apply: (st, b=1) => st.maxHp += (75*b) }
+    { id: "plant_3", name: "大樹の恵み(草)", attr: "草", css: "attr-plant", icon: "🌲", desc: "単体効果: 最大体力 +75", apply: (st, b=1) => st.maxHp += (75*b) },
+    { id: "land_ex", name: "王者の覇気(陸)", attr: "陸", css: "attr-land", icon: "👑", desc: "単体効果: クリティ倍率 +1.0x", exclusive: true, apply: (st, b=1) => st.critDmg += (1.0*b) },
+    { id: "sea_ex", name: "海神の渦(海)", attr: "海", css: "attr-sea", icon: "🌊", desc: "単体効果: スピード +25", exclusive: true, apply: (st, b=1) => st.spd += (25*b) },
+    { id: "insect_ex", name: "群虫の捕食(虫)", attr: "虫", css: "attr-insect", icon: "🦂", desc: "単体効果: クリティ率 +20%", exclusive: true, apply: (st, b=1) => st.critRate += (25*b) },
+    { id: "plant_ex", name: "世界樹の葉(草)", attr: "草", css: "attr-plant", icon: "💮", desc: "単体効果: 最大体力 +120", exclusive: true, apply: (st, b=1) => st.maxHp += (150*b) }
 ]
 
 function getCreatureType(index) {
@@ -590,7 +605,7 @@ function getObserverLogText() {
 let activePatches = []; 
 let pendingPatch = null; 
 let playerStats = { maxHp: 100, hp: 100, atk: 10, spd: 10, critRate: 5, critDmg: 1.5 };
-let inventory = { shifter: 0 };
+let inventory = { shifter: 0, jammer: 0 };
 let totalLogsAllTime = 0; 
 let enemyLevel = 1;
 let creatureLogCounts = {}; 
@@ -616,37 +631,53 @@ let currentLogs = 0;
 let playerBaseStats = { maxHp: 100, atk: 10, spd: 10 }; 
 let isFirstLoad = true;
 let remainingPlayerActions = 0;
+let runAwakenCount = 0;
 
 // ================================================================
 // 4. ハッキングカード システム
 // ================================================================
-let hackBuffs = { logSpeedMod: 1.0, enemyHpMod: 1.0, enemyAtkMod: 1.0, achieveMod: 1.0, windowAdd: 0, windowMult: 1.0, patchBoost: 1.0, critAdd: 0 };
+let hackBuffs = { logSpeedMod: 1.0, enemyHpMod: 1.0, enemyAtkMod: 1.0, achieveMod: 1.0, windowAdd: 0, windowMult: 1.0, patchBoost: 1.0, critAdd: 0,
+    bonusLogOnSettle: 0,  // 精算時ボーナス
+    healOnWin: 0,         // 戦闘勝利時回復
+    armorOnLowDamage: 0,
+    awakenBonusLog: 0, betterPatchGacha: false, giftReqMod: 1.0, sleepOnly: false, crashLimit: 15
+};
 
 const hackingCards = {
     Normal: [
         { id: "N_LOG", name: "処理最適化", desc: "ログ生成速度 x1.2", apply: () => hackBuffs.logSpeedMod = 1.2 },
         { id: "N_PATCH", name: "外部データ取得", desc: "ランダムなパッチを1つ即時取得する", immediate: true, apply: () => giveRandomPatch() },
-        { id: "N_WEAK", name: "ウイルス散布", desc: "敵の最大HP -10%", apply: () => hackBuffs.enemyHpMod = 0.9 }
+        { id: "N_WEAK", name: "ウイルス散布", desc: "敵の最大HP -10%", apply: () => hackBuffs.enemyHpMod = 0.9 },
+        { id: "N_COND_LOG", name: "キャッシュ還元", desc: "一度の精算ログが50以上の時、追加で50ログ獲得", apply: () => hackBuffs.bonusLogOnSettle = 50 },
+        { id: "N_JAMMER", name: "電波ジャック", desc: "イベントをスキップできる [Signal Jammer] を3つ即座に獲得する", immediate: true, apply: () => { inventory.jammer += 3; updateJammerUI(); localStorage.setItem("squirrel_jammer", inventory.jammer); addLog("【HACK】[Signal Jammer] を3つ獲得した！", "hack"); } }
     ],
     Bronze: [
         { id: "B_LOG", name: "オーバークロック", desc: "ログ生成速度 x1.5", apply: () => hackBuffs.logSpeedMod = 1.5 },
         { id: "B_ACHIEVE", name: "ログ解析強化", desc: "アチーブメント取得率 x1.5", apply: () => hackBuffs.achieveMod = 1.5 },
-        { id: "B_WEAK", name: "攻撃ジャミング", desc: "敵の攻撃力 -15%", apply: () => hackBuffs.enemyAtkMod = 0.85 }
+        { id: "B_WEAK", name: "攻撃ジャミング", desc: "敵の攻撃力 -15%", apply: () => hackBuffs.enemyAtkMod = 0.85 },
+        { id: "B_COND_HEAL", name: "生体データ吸収", desc: "戦闘勝利時、最大HPの10%を回復する", apply: () => hackBuffs.healOnWin = 0.1 },
+        { id: "B_AWAKEN", name: "覚醒の恩恵", desc: "覚醒(現実への帰還)15回毎に30ログを獲得", apply: () => hackBuffs.awakenBonusLog = 30 }
     ],
     Silver: [
         { id: "S_WIN", name: "マルチタスク", desc: "夢ウィンドウ最大数 +1", apply: () => hackBuffs.windowAdd = 1 },
         { id: "S_PATCH_BOOST", name: "パッチ最適化", desc: "パッチのステータス上昇量 x1.5", apply: () => hackBuffs.patchBoost = 1.5 },
-        { id: "S_CRIT", name: "弱点解析", desc: "クリティカル率 +15%", apply: () => hackBuffs.critAdd = 15 }
+        { id: "S_CRIT", name: "弱点解析", desc: "クリティカル率 +30%", apply: () => hackBuffs.critAdd = 30 },
+        { id: "S_COND_ARMOR", name: "ジャストガード", desc: "一度に受けたダメージが60以上の時、反撃アーマーを1層獲得", apply: () => hackBuffs.armorOnLowDamage = 1 },
+        { id: "S_GACHA", name: "高品質パッチ抽出", desc: "ショップでの抽出で強力なパッチ(Lv2以上)が確定で出るようになる", apply: () => hackBuffs.betterPatchGacha = true }
     ],
     Gold: [
         { id: "G_LOG", name: "量子演算", desc: "ログ生成速度 x2.5", apply: () => hackBuffs.logSpeedMod = 2.5 },
         { id: "G_WIN", name: "並列処理限界突破", desc: "夢ウィンドウ最大数 +2", apply: () => hackBuffs.windowAdd = 2 },
-        { id: "G_ACHIEVE", name: "深層データ発掘", desc: "アチーブメント取得率 x3", apply: () => hackBuffs.achieveMod = 3 }
+        { id: "G_ACHIEVE", name: "深層データ発掘", desc: "アチーブメント取得率 x3", apply: () => hackBuffs.achieveMod = 3 },
+        { id: "G_COND_LOG_BIG", name: "大口取引", desc: "一度の精算ログが500以上の時、追加で1000ログ獲得", apply: () => hackBuffs.bonusLogOnSettle = 1000 },
+        { id: "G_GIFT", name: "観測データの共鳴", desc: "ギフトの解放に必要な観測数が半分になる", apply: () => hackBuffs.giftReqMod = 0.5 }
     ],
     Platinum: [
         { id: "P_WIN", name: "無限の夢", desc: "夢ウィンドウ最大数 x3", apply: () => hackBuffs.windowMult = 3 },
         { id: "P_ACHIEVE", name: "アカシックレコード", desc: "アチーブメント取得率 x10", apply: () => hackBuffs.achieveMod = 10 },
-        { id: "P_WEAK", name: "システム掌握", desc: "敵のHPと攻撃力 -50%", apply: () => { hackBuffs.enemyHpMod = 0.5; hackBuffs.enemyAtkMod = 0.5; } }
+        { id: "P_WEAK", name: "システム掌握", desc: "敵のHPと攻撃力 -50%", apply: () => { hackBuffs.enemyHpMod = 0.5; hackBuffs.enemyAtkMod = 0.5; } },
+        { id: "P_SLEEP", name: "永遠の微睡み", desc: "深度がマイナス(覚醒方向)にならなくなる", apply: () => hackBuffs.sleepOnly = true },
+        { id: "P_LIMIT", name: "深淵の拡張", desc: "クラッシュする限界深度が ±15 から ±25 に拡張される", apply: () => hackBuffs.crashLimit = 25 }
     ]
 };
 
@@ -655,7 +686,7 @@ const giftDatabase = [
         id: "gift_damage_loss",       // 【必須】ギフトのID（他と絶対に被らない英語を入れる）
         name: "海洋の安寧",         // 【必須】画面に表示される名前
         reqCreature: "クジラ",   // 【必須】解放条件となる動物の名前（正確に）
-        reqCount: 100,              // 【必須】解放に必要な観測回数
+        reqCount: 70,              // 【必須】解放に必要な観測回数
         desc: "受けるダメージの軽減",         // 【必須】画面に表示される説明
         type: "memo_type01",          // （メモ用。プログラム上は使わないので自由でOK）
         slot: "頭"                  // 【必須】装備できる部位（"頭", "手", "足" のいずれか）
@@ -664,7 +695,7 @@ const giftDatabase = [
         id: "gift_superlucky",     
         name: "殻割の石",        
         reqCreature: "ラッコ",  
-        reqCount: 100,             
+        reqCount: 70,             
         desc: "攻撃時低確率でスーパークリティカルを発動",        
         type: "memo_type02",         
         slot: "手"                 
@@ -673,7 +704,7 @@ const giftDatabase = [
         id: "gift_fleeback",     
         name: "巻き取る蔓",        
         reqCreature: "ドクダミ",  
-        reqCount: 100,             
+        reqCount: 70,             
         desc: "逃走成功時低確率でパッチを失わない",        
         type: "memo_type03",         
         slot: "足"                 
@@ -682,7 +713,7 @@ const giftDatabase = [
         id: "gift_landani_up",     
         name: "調和の羽飾り",        
         reqCreature: "カカポ",  
-        reqCount: 100,             
+        reqCount: 70,             
         desc: "陸上に棲む生物の出現率up",        
         type: "memo_type04",         
         slot: "頭"                 
@@ -691,7 +722,7 @@ const giftDatabase = [
         id: "gift_insect_up",     
         name: "七つの樹冠",        
         reqCreature: "ナナフシ",  
-        reqCount: 100,             
+        reqCount: 70,             
         desc: "昆虫の出現率up",        
         type: "memo_type05",         
         slot: "頭"                 
@@ -700,7 +731,7 @@ const giftDatabase = [
         id: "gift_plant_up",     
         name: "太陽の冠",        
         reqCreature: "オリーブ",  
-        reqCount: 100,             
+        reqCount: 70,             
         desc: "植物の出現率up",        
         type: "memo_type06",         
         slot: "頭"                 
@@ -709,7 +740,7 @@ const giftDatabase = [
         id: "gift_special_log",     
         name: "のびのび葉っぱ",        
         reqCreature: "豆苗",  
-        reqCount: 100,             
+        reqCount: 70,             
         desc: "アチーブメントの獲得が少ししやすくなる",        
         type: "memo_type07",         
         slot: "手"                 
@@ -718,16 +749,16 @@ const giftDatabase = [
         id: "gift_log_speeder",     
         name: "ぶんぶんリング",        
         reqCreature: "ミツバチ",  
-        reqCount: 100,             
+        reqCount: 70,             
         desc: "ログ生成速度がちょっぴり上がる",        
         type: "memo_type08",         
         slot: "頭"                 
     },
         { 
         id: "gift_stabilizer",     
-        name: "軛の鋲",        
+        name: "ぱたぱた鉤爪",        
         reqCreature: "ニワトリ",  
-        reqCount: 100,             
+        reqCount: 70,             
         desc: "過覚醒・過睡眠の進行を和らげる",        
         type: "memo_type09",         
         slot: "足"                 
@@ -736,7 +767,7 @@ const giftDatabase = [
         id: "gift_heal", 
         name: "生命の残滓", 
         reqCreature: "テントウムシ", 
-        reqCount: 100, 
+        reqCount: 70, 
         desc: "バトル勝利時、減少したHPの10%を回復する",
         type: "battle_win_heal" , slot: "手"
     },
@@ -744,7 +775,7 @@ const giftDatabase = [
         id: "gift_slow", 
         name: "泥濘の足跡", 
         reqCreature: "エゾジカ", 
-        reqCount: 100, 
+        reqCount: 70, 
         desc: "敵の初期速度を5%低下させる",
         type: "enemy_slow", slot: "足"
     },
@@ -752,7 +783,7 @@ const giftDatabase = [
         id: "gift_shifter", 
         name: "夢の滑空", 
         reqCreature: "モモンガ", 
-        reqCount: 100, 
+        reqCount: 70, 
         desc: "深度変動時、1%の確率でDream Shifterを獲得",
         type: "shifter_chance", slot: "頭"
     },
@@ -765,7 +796,7 @@ const giftDatabase = [
     },
     { 
         id: "gift_reincarnation_ring", name: "輪廻転生リング", reqCreature: "なし(イベント専用)", reqCount: 9999, 
-        desc: "氷柱の連鎖が生み出した奇跡の指輪。（※効果は後で設定可能）", type: "event_item", slot: "手" 
+        desc: "所持ログ数が5000個毎にアチーブメント取得率+1％", type: "event_item", slot: "手" 
     }
 
 ];
@@ -779,7 +810,7 @@ let currentHackingIndex = 0;
 let activeHackingCardId = null;
 
 function resetHackingBuffs() {
-    hackBuffs = { logSpeedMod: 1.0, enemyHpMod: 1.0, enemyAtkMod: 1.0, achieveMod: 1.0, windowAdd: 0, windowMult: 1.0, patchBoost: 1.0, critAdd: 0 };
+    hackBuffs = { logSpeedMod: 1.0, enemyHpMod: 1.0, enemyAtkMod: 1.0, achieveMod: 1.0, windowAdd: 0, windowMult: 1.0, patchBoost: 1.0, critAdd: 0, bonusLogOnSettle: 0, healOnWin: 0, armorOnLowDamage: 0,awakenBonusLog: 0, betterPatchGacha: false, giftReqMod: 1.0, sleepOnly: false, crashLimit: 15 };
     document.getElementById("active-hack-display").style.display = "none";
 }
 
@@ -800,8 +831,9 @@ function restoreHackingBuff() {
 }
 
 let hackQueue = [];
+
 function checkHackingEvent() {
-    while (currentHackingIndex < hackingThresholds.length && totalLogsAllTime >= hackingThresholds[currentHackingIndex].log) {
+    while (currentHackingIndex < hackingThresholds.length && currentLogs >= hackingThresholds[currentHackingIndex].log) {
         hackQueue.push(hackingThresholds[currentHackingIndex].rank);
         currentHackingIndex++;
         localStorage.setItem("squirrel_hacking_index", currentHackingIndex);
@@ -862,13 +894,19 @@ function selectHackingCard(card) {
     if (hackQueue.length > 0) processHackingQueue();
     else if (!isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
 }
-
 function giveRandomPatch() {
-    const p = patchDatabase[Math.floor(Math.random() * patchDatabase.length)];
+    let pool = patchDatabase.filter(p => !p.exclusive);
+    if (hackBuffs.betterPatchGacha) {
+        pool = patchDatabase.filter(p => p.exclusive);
+        addLog(`【HACK】高品質パッチ抽出プロトコルが稼働…！`, "#0ff"); 
+    }
+    
+    const p = pool[Math.floor(Math.random() * pool.length)];
     if(activePatches.length >= 5) {
         pendingPatch = p; isPaused = true; showReplaceModal();
     } else {
-        activePatches.push(p); addLog(`Hack Bonus: パッチ [${p.name}] を獲得した！`, "system");
+        activePatches.push(p); 
+        addLog(`Hack Bonus: パッチ [${p.name}] を獲得した！`, "system");
         calculateStats(); 
     }
 }
@@ -915,6 +953,7 @@ function loadSavedData() {
     if (localStorage.getItem("squirrel_last_event")) lastEventId = localStorage.getItem("squirrel_last_event");
     if (localStorage.getItem("squirrel_current_logs")) currentLogs = parseInt(localStorage.getItem("squirrel_current_logs"), 10);
     if (localStorage.getItem("squirrel_base_stats")) playerBaseStats = JSON.parse(localStorage.getItem("squirrel_base_stats"));
+    if (localStorage.getItem("squirrel_awaken_count")) runAwakenCount = parseInt(localStorage.getItem("squirrel_awaken_count"), 10);
     if (localStorage.getItem("squirrel_pending_event")) {
         let pendingEvent = localStorage.getItem("squirrel_pending_event");
         currentEventId = pendingEvent;
@@ -928,6 +967,10 @@ function loadSavedData() {
     if (localStorage.getItem("squirrel_shifter")) {
         inventory.shifter = parseInt(localStorage.getItem("squirrel_shifter"), 10);
         document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
+    }
+    if (localStorage.getItem("squirrel_jammer")) {
+        inventory.jammer = parseInt(localStorage.getItem("squirrel_jammer"), 10);
+        updateJammerUI();
     }
     activeHackingCardId = localStorage.getItem("squirrel_active_hack") || null;
     
@@ -971,6 +1014,9 @@ function checkCycleReset() {
         
         dreamCounter = 0;
         inventory.shifter = 0;
+        inventory.jammer = 0;
+        updateJammerUI();
+        runAwakenCount = 0;
         instaKillArrows = 0;
         counterArmorStacks = 0;
         isImmortalBuilder = false;
@@ -1010,10 +1056,14 @@ function calculateStats() {
 
     let oldMaxHp = playerStats.maxHp || playerBaseStats.maxHp;
     let currentHp = playerStats.hp;
+    let initialLoadFlag = false;
+
     if (isFirstLoad && localStorage.getItem("squirrel_current_hp")) {
         currentHp = parseInt(localStorage.getItem("squirrel_current_hp"), 10);
+        initialLoadFlag = true; 
         isFirstLoad = false; 
     }
+
     playerStats = { 
         maxHp: playerBaseStats.maxHp, 
         hp: currentHp, 
@@ -1047,7 +1097,9 @@ function calculateStats() {
     playerStats.critRate += hackBuffs.critAdd;
 
     let hpDiff = playerStats.maxHp - oldMaxHp;
-    if (hpDiff > 0) playerStats.hp += hpDiff;
+    if (hpDiff > 0 && !initialLoadFlag) {
+        playerStats.hp += hpDiff;
+    }
     if (playerStats.hp > playerStats.maxHp) playerStats.hp = playerStats.maxHp;
 
     if (isImmortalBuilder) {
@@ -1060,7 +1112,6 @@ function calculateStats() {
     localStorage.setItem("squirrel_current_hp", playerStats.hp);
     updateStatsUI(activeSets);
 }
-
 function updateStatsUI(activeSets) {
     document.getElementById("stat-atk").textContent = playerStats.atk;
     document.getElementById("stat-hp").textContent = `${Math.floor(Math.max(0, playerStats.hp))}/${playerStats.maxHp}`;
@@ -1238,7 +1289,32 @@ function showEventModal(type) {
         btnListen.onclick = () => resolveTimbre();
         choices.appendChild(btnListen);
     }
-}
+    if (inventory.jammer > 0) {
+        const btnSkip = document.createElement("button");
+        btnSkip.className = "event-btn";
+        btnSkip.style.borderColor = "#9c27b0";
+        btnSkip.style.color = "#9c27b0";
+        btnSkip.style.marginTop = "15px";
+        btnSkip.style.width = "100%"; 
+        btnSkip.textContent = `ジャマーでやり過ごす (残: ${inventory.jammer})`;
+        
+        btnSkip.onclick = () => {
+            inventory.jammer--;
+            updateJammerUI();
+            localStorage.setItem("squirrel_jammer", inventory.jammer);
+            addLog("【SYSTEM】Signal Jammerを使用し、イベントを安全にスキップした。", "system");
+    
+            localStorage.removeItem("squirrel_pending_event");
+            closeEventModal();
+            };
+            localStorage.setItem("squirrel_jammer", inventory.jammer);
+            addLog("【SYSTEM】Signal Jammerを使用し、イベントを安全にスキップした。", "system");
+
+            localStorage.removeItem("squirrel_pending_event");
+            closeEventModal();
+        };
+        choices.appendChild(btnSkip);
+    }
 function closeEventModal() {
     document.getElementById("event-modal").style.display = "none"; isPaused = false; localStorage.removeItem("squirrel_pending_event"); processHackingQueue();
     if(hackQueue.length === 0 && !isBattling && !isSettling) mainLoopTimer = setInterval(updateCounter, 2500);
@@ -1614,6 +1690,7 @@ function enemyAttack() {
         addBattleLog(`【豊かな工務店】不死身の肉体がダメージを無効化した！`, "#0f0");
     } 
     else {
+        
         playerStats.hp -= dmg; 
         localStorage.setItem("squirrel_current_hp", playerStats.hp);
         addBattleLog(`ナイトメアの攻撃！ プレイヤーに ${dmg} のダメージ！`, "#f55");
@@ -1627,6 +1704,11 @@ function enemyAttack() {
         
         addBattleLog(`【反撃アーマー】受けた衝撃を反射！ 敵に ${counterDmg} のダメージ！ (残り${counterArmorStacks}層)`, "#ff9800");
         spawnPopup(`-${counterDmg}`, "#ff9800", "b-enemy-hp-text");
+    if (dmg >= 60 && hackBuffs.armorOnLowDamage > 0) {
+        counterArmorStacks += hackBuffs.armorOnLowDamage;
+        localStorage.setItem("squirrel_armor_stacks", counterArmorStacks);
+        addBattleLog(`【HACK】ジャストガード成功！ 反撃アーマーを1層獲得！`, "#0ff");
+        }
     }
 
     updateBattleUI();
@@ -1643,11 +1725,11 @@ function endBattleWin() {
         let rewardLogs = 50 * (enemyLevel * 3) * 5; 
         log_corrector.push({ windowId: "battle", creature: "System(群れ討伐報酬)", count: rewardLogs, type: "SYSTEM" });
         
-        inventory.shifter += 50; 
+        inventory.shifter += 10; 
         document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
         
         addLog(`【EVENT CLEAR】蠢く春雷の群れを完全に沈黙させた！`, "#ffeb3b");
-        addLog(`戦利品として [Dream Shifter] を50個獲得した！`, "#0f0");
+        addLog(`戦利品として [Dream Shifter] を10個獲得した！`, "#0f0");
         
         isThunderBattle = false; 
     } else {
@@ -1659,6 +1741,12 @@ function endBattleWin() {
         
         addLog(`BATTLE WIN: ナイトメア撃破。未精算ログを獲得。(次周 Enemy Lv.${enemyLevel + 1})`, "system");
         addLog(`戦闘報酬として [Dream Shifter] を1つ獲得した！`, "system");
+    }
+    if (hackBuffs.healOnWin > 0 && playerStats.hp < playerStats.maxHp) {
+        let healAmount = Math.max(1, Math.floor(playerStats.maxHp * hackBuffs.healOnWin));
+        playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + healAmount);
+        addLog(`【HACK】生体データ吸収によりHPが ${healAmount} 回復した！`, "hack");
+        updateStatsUI([]); 
     }
 
     if (Object.values(equippedGifts).includes("gift_heal") && playerStats.hp < playerStats.maxHp) {
@@ -1722,7 +1810,9 @@ function discardAllDreamWindows() {
 // ================================================================
 function showPassiveSelection() {
     isPaused = true; passiveChoices.innerHTML = "";
-    const shuffled = [...patchDatabase].sort(() => 0.5 - Math.random()); const choices = shuffled.slice(0, 3);
+    const normalPatches = patchDatabase.filter(p => !p.exclusive);
+    const shuffled = [...normalPatches].sort(() => 0.5 - Math.random()); 
+    const choices = shuffled.slice(0, 3);
     choices.forEach(p => {
         const div = document.createElement("div"); div.className = "passive-card";
         div.innerHTML = `<div class="p-icon">${p.icon}</div><div class="p-attr ${p.css}">${p.attr}属性</div><div class="p-name">${p.name}</div><div class="p-desc">${p.desc}</div><button style="margin-top:auto;">INSTALL</button>`;
@@ -1795,7 +1885,21 @@ function manageDreamWindows() {
 }
 
 function handleZeroCrossing(oldCounter) {
-    if (oldCounter > 0) { addLog("現実へ帰還。ログ精算...", "system"); Object.keys(activeWindows).forEach(k => closeDreamWindow(k)); checkAchievements(); } 
+    if (oldCounter > 0) { 
+        addLog("現実へ帰還。ログ精算...", "system"); 
+        Object.keys(activeWindows).forEach(k => closeDreamWindow(k)); 
+
+        runAwakenCount++;
+        localStorage.setItem("squirrel_awaken_count", runAwakenCount);
+        if (hackBuffs.awakenBonusLog > 0 && runAwakenCount % 15 === 0) {
+            currentLogs += hackBuffs.awakenBonusLog;
+            totalLogsAllTime += hackBuffs.awakenBonusLog;
+            document.getElementById("hud-total-logs").textContent = currentLogs;
+            addLog(`【HACK】覚醒の恩恵！ 覚醒に ${runAwakenCount} 回漂ったことにより、ログを ${hackBuffs.awakenBonusLog} 獲得！`, "hack");
+        }
+
+        checkAchievements(); 
+    } 
     else addLog("覚醒深度リセット。", "awaken");
 }
 
@@ -1837,6 +1941,11 @@ function updateCounter() {
     
     dreamCounter += delta;
 
+    if (hackBuffs.sleepOnly && dreamCounter < 0) {
+        delta += Math.abs(dreamCounter); 
+        dreamCounter = 0;
+    }
+
     if (delta !== 0) {
         totalDepthChanges += Math.abs(delta);
         if (Object.values(equippedGifts).includes("gift_shifter") && Math.random() < 0.01) {
@@ -1844,14 +1953,11 @@ function updateCounter() {
             document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
             addLog("【GIFT】夢の滑空の効果で [Dream Shifter] を1つ発見した！", "hack");
         }
-        
-        // ▼ 修正: 遭遇戦の判定部分
         if (totalDepthChanges >= 30) { 
-            // 深度0（現実・精算時）に到着した瞬間はバトルを発生させず、次回に持ち越す
             if (dreamCounter !== 0) {
                 totalDepthChanges = 0; 
-                updateVisualState();  // 画面の数字を正しく更新！
-                manageDreamWindows(); // ウィンドウも正しく開閉！
+                updateVisualState();  
+                manageDreamWindows(); 
                 startBattle(); 
                 return; 
             }
@@ -1863,8 +1969,8 @@ function updateCounter() {
     }
 
     let isCrashed = false; 
-    if (dreamCounter >= 15 || dreamCounter <= -15) {
-        isCrashed = true; dreamCounter = 0; activePatches = []; 
+    if (dreamCounter >= hackBuffs.crashLimit || dreamCounter <= -hackBuffs.crashLimit) {
+        isCrashed = true; dreamCounter = 0; activePatches = [];
         enemyLevel = Math.max(1, Math.floor(enemyLevel / 2) + 1); localStorage.setItem("squirrel_enemy_level", enemyLevel);
         calculateStats(); addLog(`CRASH: 限界深度突破。全パッチと未精算ログをロスト... (次周 Enemy Lv.${enemyLevel}に低下)`, "chaos"); playFinishSound();
         discardAllDreamWindows(); 
@@ -2006,8 +2112,15 @@ function checkAchievements() {
     
     isSettling = true;
     const box = document.getElementById("settlement-box"); const countEl = document.getElementById("settlement-count");
-    const total = log_corrector.reduce((a,b)=>a+b.count,0);
-    
+    let total = log_corrector.reduce((a,b)=>a+b.count,0);
+    if (hackBuffs.bonusLogOnSettle > 0) {
+        // Normalの50ボーナスなら閾値50、Goldの300ボーナスなら閾値200とするための簡易判定
+        let required = hackBuffs.bonusLogOnSettle === 50 ? 50 : 500;
+        if (total >= required) {
+            total += hackBuffs.bonusLogOnSettle;
+            addLog(`【HACK】条件達成！ 追加で ${hackBuffs.bonusLogOnSettle} ログを獲得！`, "hack");
+        }
+    }
     totalLogsAllTime += total;
     currentLogs += total;
     localStorage.setItem("squirrel_total_logs", totalLogsAllTime);
@@ -2016,10 +2129,17 @@ function checkAchievements() {
     calculateStats(); 
     updateProgressBar();
 
-    let c = 0; let toothElephantFlag=false, toothHippoFlag=false;
+let c = 0; let toothElephantFlag=false, toothHippoFlag=false;
     let am = hackBuffs.achieveMod;
     if (Object.values(equippedGifts).includes("gift_special_log")) {
         am *= 1.5; 
+    }
+    if (Object.values(equippedGifts).includes("gift_reincarnation_ring")) {
+        let ringBonus = Math.floor(currentLogs / 5000) * 0.01; 
+        am += ringBonus;
+        if (ringBonus > 0) {
+            addLog(`【GIFT】輪廻転生リングの共鳴。アチーブメント取得率 +${Math.floor(ringBonus * 100)}%`, "#00bcd4");
+        }
     }
 
     log_corrector.forEach(log => {
@@ -2028,7 +2148,7 @@ function checkAchievements() {
             if (!creatureLogCounts[cName]) creatureLogCounts[cName] = 0;
             creatureLogCounts[cName] += log.count;
             giftDatabase.forEach(gift => {
-                if (gift.reqCreature === cName && creatureLogCounts[cName] >= gift.reqCount && !unlockedGifts.includes(gift.id)) {
+                if (gift.reqCreature === cName && creatureLogCounts[cName] >= (gift.reqCount * hackBuffs.giftReqMod) && !unlockedGifts.includes(gift.id)) {
                     unlockedGifts.push(gift.id);
                     addLog(`【GIFT】${cName}の観測データから『${gift.name}』を抽出しました！`, "hack");
                     const t = document.getElementById("toast"); 
@@ -2082,7 +2202,6 @@ function checkAchievements() {
         }
     }, 50);
 }
-
 function unlockById(id) { const ach = achievementList.find(a=>a.id===id); if(ach && !unlockedAchievements.has(id)) unlockAchievement(ach); }
 function unlockAchievement(ach) {
     unlockedAchievements.add(ach.id); addLog(`実績解除: [${ach.title}]`, "system");
@@ -2220,7 +2339,7 @@ function buyUpgrade(type, cost, amount) {
     if (currentLogs >= cost) {
         currentLogs -= cost;
         if (type === 'atk') playerBaseStats.atk += amount;
-        if (type === 'hp') { playerBaseStats.maxHp += amount; playerStats.hp += amount; }
+        if (type === 'hp') { playerBaseStats.maxHp += amount; }
         if (type === 'spd') playerBaseStats.spd += amount;
         
         saveShopData();
@@ -2237,13 +2356,18 @@ function buyItem(itemType, cost) {
             inventory.shifter++;
             document.getElementById("hud-shifter-count").textContent = "x" + inventory.shifter;
             addLog(`【SHOP】[Dream Shifter] を1つ購入した！`, "system");
-        }
+        } 
+    else if (itemType === 'jammer') {
+        inventory.jammer++;
+        updateJammerUI();
+        localStorage.setItem("squirrel_jammer", inventory.jammer);
+        addLog(`【SHOP】[Signal Jammer] を1つ購入した！`, "system");
+    }
         saveShopData();
     } else {
         alert("ログが足りません！");
     }
 }
-
 function buyPatch(cost) {
     if (currentLogs >= cost) {
         currentLogs -= cost;
@@ -2315,10 +2439,8 @@ function updateProgressBar() {
     
     if (currentHackingIndex < hackingThresholds.length) {
         const nextThreshold = hackingThresholds[currentHackingIndex].log;
-        const prevThreshold = currentHackingIndex > 0 ? hackingThresholds[currentHackingIndex - 1].log : 0;
-        const currentProgress = totalLogsAllTime - prevThreshold;
-        const required = nextThreshold - prevThreshold;
-        const percent = Math.min(100, Math.max(0, (currentProgress / required) * 100));
+        
+        const percent = Math.min(100, Math.max(0, (currentLogs / nextThreshold) * 100));
         
         bar.style.width = `${percent}%`;
         bar.style.background = "#b59410";
@@ -2335,7 +2457,13 @@ function updateLogCountUI() {
     document.getElementById("hud-total-logs").textContent = currentLogs;
     
     calculateStats(); checkHackingEvent(); 
-    updateProgressBar(); // ▼ 追加: ログが増減するたびにゲージを更新！
+    updateProgressBar(); 
+}
+function updateJammerUI() {
+    const el = document.getElementById("hud-jammer-count");
+    if (el) {
+        el.textContent = "x" + inventory.jammer;
+    }
 }
 </script>
 </body>
