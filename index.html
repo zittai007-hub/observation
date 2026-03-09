@@ -734,10 +734,8 @@ const giftDatabase = [
     { 
         id: "gift_reincarnation_ring", name: "輪廻転生リング", reqCreature: "なし(イベント専用)", reqCount: 9999, 
         desc: "氷柱の連鎖が生み出した奇跡の指輪。（※効果は後で設定可能）", type: "event_item", slot: "手" 
-    },
-    { id: "gift_hidden_1", name: "隠された音色【序】", reqCreature: "なし", reqCount: 9999, desc: "隠しセットの1つ", type: "hidden_set", slot: "頭" },
-    { id: "gift_hidden_2", name: "隠された音色【破】", reqCreature: "なし", reqCount: 9999, desc: "隠しセットの1つ", type: "hidden_set", slot: "手" },
-    { id: "gift_hidden_3", name: "隠された音色【急】", reqCreature: "なし", reqCount: 9999, desc: "隠しセットの1つ", type: "hidden_set", slot: "足" }
+    }
+
 ];
 
 const hackingThresholds = [
@@ -1379,19 +1377,38 @@ function resolveBuilder(isAccept) {
 }
 
 function resolveTimbre() {
-    const hiddenSet = ["gift_hidden_1", "gift_hidden_2", "gift_hidden_3"];
+    // リロード逃げ防止フラグを消去
+    localStorage.removeItem("squirrel_pending_event"); 
+
+    // ▼修正: 仮置きIDから、実際の出現率アップギフト3種のIDに変更！
+    const hiddenSet = ["gift_landani_up", "gift_insect_up", "gift_plant_up"];
+    
+    // プレイヤーが持っている対象ギフトのIDを抽出
     const ownedHidden = hiddenSet.filter(id => unlockedGifts.includes(id));
     
-    if (ownedHidden.length === 2) {
-        const missingGiftId = hiddenSet.find(id => !unlockedGifts.includes(id));
-        const giftData = giftDatabase.find(g => g.id === missingGiftId);
+    if (ownedHidden.length < 3) {
+        // まだ持っていない対象ギフトのリストを作成
+        const missingGifts = hiddenSet.filter(id => !unlockedGifts.includes(id));
         
-        unlockedGifts.push(missingGiftId);
+        // その中からランダムに1つ選んで付与
+        const newGiftId = missingGifts[Math.floor(Math.random() * missingGifts.length)];
+        const giftData = giftDatabase.find(g => g.id === newGiftId);
+        
+        unlockedGifts.push(newGiftId);
         localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
-        addLog(`【EVENT】音色が共鳴し、欠けていた『${giftData.name}』を呼び寄せた！`, "#e91e63");
+        
+        // UI（図鑑・ギフト画面など）に即座に反映
+        if (typeof renderGiftUI === "function") renderGiftUI();
+        
+        addLog(`【EVENT】音色が共鳴し、未知のギフト『${giftData.name}』を呼び寄せた！`, "#e91e63");
     } else {
-        addLog("【EVENT】音色はしばらく響いていたが、やがて虚空に消えていった…", "neutral");
+        // 3つ全て揃っている場合のボーナス（例として3000LOG獲得）
+        currentLogs += 3000;
+        localStorage.setItem("squirrel_current_logs", currentLogs);
+        document.getElementById("hud-total-logs").textContent = currentLogs;
+        addLog("【EVENT】3つの冠（ギフト）が完全に調和し、膨大なデータ(3000 LOG)へと変換された！", "#0f0");
     }
+    
     closeEventModal();
 }
 
