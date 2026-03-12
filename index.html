@@ -93,14 +93,42 @@ body {
     box-shadow: 0 -3px 10px rgba(0,0,0,0.2); display: flex; gap: 10px; align-items: center;
 }
 
-#container {
-    width: 95%; max-width: 1200px; 
+/* ▼ 新規追加: 全体を横に並べるための大枠のCSS */
+#app-wrapper {
+    display: flex;
+    flex-direction: row; /* 強制的に横並びに指定！ */
+    justify-content: center;
+    align-items: center;
+    width: 98%;
+    max-width: 1400px;
     height: calc(100vh - 140px);
     margin-top: 20px;
-    position: relative; z-index: 100; background: #fff; 
-    border: 3px solid #000; border-radius: 4px;
+    gap: 15px; /* アチーブメントと画面の隙間 */
+    z-index: 100;
+}
+
+/* ▼ 新規追加: 左右のアイコンを縦に並べる枠 */
+#achievements-left, #achievements-right {
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* アイコンを上下中央に寄せる */
+    gap: 15px;
+    flex-shrink: 0; /* 画面が狭くなってもアイコンが潰れないようにする */
+}
+
+/* ▼ 修正: 元の #container のCSSをこれでまるごと上書き */
+#container {
+    flex: 1; /* 余った横幅をメイン画面がすべて埋める */
+    max-width: 1200px;
+    height: 100%; /* 親(app-wrapper)の高さに合わせる */
+    margin-top: 0; /* ★重要: 余計なズレを防ぐために 0 にする */
+    position: relative; 
+    background: #fff; 
+    border: 3px solid #000; 
+    border-radius: 4px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-    display: flex; flex-direction: column;
+    display: flex; 
+    flex-direction: column;
     transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     overflow: hidden; 
 }
@@ -228,12 +256,23 @@ button:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0px #000; }
 @keyframes shake { 0%{transform:scale(1);} 50%{transform:scale(1.1);} 100%{transform:scale(1);} }
 .sucking-log { position: absolute; color: #555; font-size: 10px; pointer-events: none; font-weight:bold; }
 
-#zukan-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 6000; display: none; justify-content: center; align-items: center; color:#000; }
-#zukan-content { width: 80%; height: 80%; background: #fff; border: 4px solid #000; padding: 20px; overflow-y: auto; position: relative; box-shadow: 10px 10px 0px rgba(0,0,0,0.1); }
-.achievement-item { border-bottom: 2px solid #eee; padding: 15px; display: flex; align-items: center; opacity: 0.4; }
-.achievement-item.unlocked { opacity: 1; background: #f9f9f9; border-left: 6px solid #000; }
-.ach-icon { font-size: 24px; margin-right: 15px; width: 40px; text-align: center; }
-
+.ach-icon-slot {
+    width: 50px; height: 50px; 
+    border: 3px solid #000; background: #fafafa;
+    display: flex; justify-content: center; align-items: center; 
+    font-size: 26px; cursor: help; opacity: 0.3; 
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    box-sizing: border-box; border-radius: 8px;
+    box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+}
+.ach-icon-slot.unlocked {
+    opacity: 1; border-color: #ffd700; background: #fffde7; 
+    box-shadow: 0 0 15px rgba(255,215,0,0.6), 4px 4px 0px rgba(0,0,0,0.2);
+}
+.ach-icon-slot:hover {
+    transform: scale(1.15) translateY(-2px);
+    opacity: 1;
+}
 #toast { position: fixed; bottom: 130px; left: 50%; transform: translateX(-50%); background: #000; color: #fff; padding: 15px 30px; display: none; z-index: 7000; animation: slideUp 0.5s ease; border-radius: 4px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); font-weight: bold; }
 @keyframes slideUp { from{transform:translate(-50%,20px);opacity:0;} to{transform:translate(-50%,0);opacity:1;} }
 ::-webkit-scrollbar { width: 8px; }
@@ -402,38 +441,70 @@ body::after {
         <button class="battle-btn flee" style="margin-top:20px; width:100%;" onclick="closeItemModal()">キャンセル</button>
     </div>
 </div>
-<div id="container">
-    <div id="header">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span>Parallel Dream Processor</span>
-        </div>
-        <div style="display:flex; gap:10px;">
-            <button id="btn-shop" style="border-color:#4caf50; color:#4caf50;">SHOP</button> 
-            <button id="btn-gift">GIFTS</button> 
-            <button id="btn-zukan">ACHIEVEMENTS</button>
-        </div>
-    </div>
-    <div id="main-content-area">
-        <div id="settlement-ui">
-            <div id="settlement-count">0</div>
-            <div id="settlement-box">
-                <span style="font-size:24px">📥</span>
-            </div>
-        </div>
-        <div id="main-log-window"></div>
-        <div id="dream-container"></div>
-    </div>
-    <div id="footer">
-        <span style="font-size:10px; color:#555;">SYSTEM READY...</span>
+<div id="clear-modal" class="overlay-modal" style="background: #ffffff; z-index: 9999; flex-direction: column; justify-content: center; align-items: center; display: none; transition: opacity 2.5s ease-in; opacity: 0;">
+    
+    <pre id="clear-ascii" style="font-family: 'Cutive Mono', monospace; font-size: 14px; color: #111; line-height: 1.1; text-align: center; margin-bottom: 30px;">
+[ ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────|
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::┃:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;┃::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: ＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿　:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::|
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::┃. . . . . . . . .:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;┃::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::| 　 ＿＿_　　　　　　　　　 　 　 　 ＿＿00　　 　 ＿,　　__　　　　 ___　　　|::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::|
+.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.┃. . . . . . . . .薬院大通:;:;:;:;:;N;:;:;:;┃.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:. |　 └ ﾏノ　 ,⊆.己　 に二二l　 └‐┐l　　 く Ｖ ／　└┘/7　　| ∟　　|.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:|
+.......................................................................................................................┃. . . . . . . . .Yakuin-odori:;:13→┃......................................................................... |　　 くノ　 　 ｀ﾌ_厂　　　　　　　 　 　 (ノ　　 く へ＞　　 ＜ノ　　 |_厂　　|............................................................................................................................................................................................................................................................................|
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 ┃:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;:;┃　　　　　　　　　　　 　 　 　 　 　 　 |＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿|　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 ┗━━━━━━━━━━━━┛　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 　 　 　 　 　 　 |
+￣￣￣￣￣￣￣￣|＿＿＿＿＿＿＿|￣￣￣￣￣￣￣￣￣￣|＿＿＿＿＿＿＿|￣￣￣￣￣￣￣￣￣￣|＿＿＿＿＿＿＿|￣￣￣￣￣￣￣￣￣￣|＿＿＿＿＿＿＿|￣￣￣￣￣￣￣￣￣￣|＿＿＿＿＿＿＿|￣￣￣￣￣￣￣￣￣￣|＿＿＿＿＿＿＿|￣￣￣￣￣￣￣￣￣￣|＿＿＿＿＿＿＿|￣￣￣￣￣￣￣￣　|
+爾爾爾爾爾爾爾　│　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　　│爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾 |
+爾爾爾爾爾爾爾　│　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　　│爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾 |
+爾爾爾爾爾爾爾　│　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾爾 │　　　　┃　　　　│爾爾爾爾爾爾爾爾爾 │　　　　┃　　　 │爾爾爾爾爾爾爾爾 |
+＿＿＿＿＿＿＿＿|￣￣￣￣￣￣￣|＿＿＿＿＿＿＿＿＿＿|￣￣￣￣￣￣￣|＿＿＿＿＿＿＿＿＿＿|￣￣￣￣￣￣￣|＿＿＿＿＿＿＿＿＿＿|￣￣￣￣￣￣￣|＿＿＿＿＿＿＿＿＿＿|￣￣￣￣￣￣￣|＿＿＿＿＿＿＿＿＿＿|￣￣￣￣￣￣￣|＿＿＿＿＿＿＿＿＿＿|￣￣￣￣￣￣￣|＿＿＿＿＿＿＿＿　|
+￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣|
+国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国国|
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿ |
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+■　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ]
+    </pre>
+    
+    <div id="clear-message" style="font-family: 'Orbitron', sans-serif; font-size: 24px; font-weight: 900; color: #000; opacity: 0; transition: opacity 3s ease-in;">
+        SYSTEM OBSERVATION COMPLETED.
     </div>
 </div>
+<div id="app-wrapper">
+    <div id="achievements-left"></div>
 
-<div id="zukan-modal">
-    <div id="zukan-content">
-        <div id="zukan-close" style="position:absolute; top:10px; right:20px; color:#000; cursor:pointer; font-size:30px; font-weight:bold;">×</div>
-        <h2 style="color:#000; text-align:center; border-bottom:3px solid #000; padding-bottom:10px;">ACQUIRED LOGS</h2>
-        <div id="achievement-list"></div>
+    <div id="container">
+        <div id="header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span>Parallel Dream Processor</span>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button id="btn-shop" style="border-color:#4caf50; color:#4caf50;">SHOP</button> 
+                <button id="btn-gift">GIFTS</button> 
+            </div>
+        </div>
+        <div id="main-content-area">
+            <div id="settlement-ui">
+                <div id="settlement-count">0</div>
+                <div id="settlement-box">
+                    <span style="font-size:24px">📥</span>
+                </div>
+            </div>
+            <div id="main-log-window"></div>
+            <div id="dream-container"></div>
+        </div>
+        <div id="footer">
+            <span style="font-size:10px; color:#555;">SYSTEM READY...</span>
+        </div>
     </div>
+    
+    <div id="achievements-right"></div>
 </div>
 <div id="gift-modal" class="overlay-modal" style="z-index: 6000;">
     <div style="width: 80%; max-width: 600px; background: #fff; border: 4px solid #000; padding: 20px; position: relative; box-shadow: 10px 10px 0px rgba(0,0,0,0.1);">
@@ -686,7 +757,7 @@ const giftDatabase = [
         id: "gift_damage_loss",       // 【必須】ギフトのID（他と絶対に被らない英語を入れる）
         name: "海洋の安寧",         // 【必須】画面に表示される名前
         reqCreature: "クジラ",   // 【必須】解放条件となる動物の名前（正確に）
-        reqCount: 70,              // 【必須】解放に必要な観測回数
+        reqCount: 50,              // 【必須】解放に必要な観測回数
         desc: "受けるダメージの軽減",         // 【必須】画面に表示される説明
         type: "memo_type01",          // （メモ用。プログラム上は使わないので自由でOK）
         slot: "頭"                  // 【必須】装備できる部位（"頭", "手", "足" のいずれか）
@@ -695,7 +766,7 @@ const giftDatabase = [
         id: "gift_superlucky",     
         name: "殻割の石",        
         reqCreature: "ラッコ",  
-        reqCount: 70,             
+        reqCount: 50,             
         desc: "攻撃時低確率でスーパークリティカルを発動",        
         type: "memo_type02",         
         slot: "手"                 
@@ -704,7 +775,7 @@ const giftDatabase = [
         id: "gift_fleeback",     
         name: "巻き取る蔓",        
         reqCreature: "ドクダミ",  
-        reqCount: 70,             
+        reqCount: 50,             
         desc: "逃走成功時低確率でパッチを失わない",        
         type: "memo_type03",         
         slot: "足"                 
@@ -713,7 +784,7 @@ const giftDatabase = [
         id: "gift_landani_up",     
         name: "調和の羽飾り",        
         reqCreature: "カカポ",  
-        reqCount: 70,             
+        reqCount: 50,             
         desc: "陸上に棲む生物の出現率up",        
         type: "memo_type04",         
         slot: "頭"                 
@@ -722,7 +793,7 @@ const giftDatabase = [
         id: "gift_insect_up",     
         name: "七つの樹冠",        
         reqCreature: "ナナフシ",  
-        reqCount: 70,             
+        reqCount: 50,             
         desc: "昆虫の出現率up",        
         type: "memo_type05",         
         slot: "頭"                 
@@ -731,7 +802,7 @@ const giftDatabase = [
         id: "gift_plant_up",     
         name: "太陽の冠",        
         reqCreature: "オリーブ",  
-        reqCount: 70,             
+        reqCount: 50,             
         desc: "植物の出現率up",        
         type: "memo_type06",         
         slot: "頭"                 
@@ -740,7 +811,7 @@ const giftDatabase = [
         id: "gift_special_log",     
         name: "のびのび葉っぱ",        
         reqCreature: "豆苗",  
-        reqCount: 70,             
+        reqCount: 50,             
         desc: "アチーブメントの獲得が少ししやすくなる",        
         type: "memo_type07",         
         slot: "手"                 
@@ -749,7 +820,7 @@ const giftDatabase = [
         id: "gift_log_speeder",     
         name: "ぶんぶんリング",        
         reqCreature: "ミツバチ",  
-        reqCount: 70,             
+        reqCount: 50,             
         desc: "ログ生成速度がちょっぴり上がる",        
         type: "memo_type08",         
         slot: "頭"                 
@@ -758,7 +829,7 @@ const giftDatabase = [
         id: "gift_stabilizer",     
         name: "ぱたぱた鉤爪",        
         reqCreature: "ニワトリ",  
-        reqCount: 70,             
+        reqCount: 50,             
         desc: "過覚醒・過睡眠の進行を和らげる",        
         type: "memo_type09",         
         slot: "足"                 
@@ -767,7 +838,7 @@ const giftDatabase = [
         id: "gift_heal", 
         name: "生命の残滓", 
         reqCreature: "テントウムシ", 
-        reqCount: 70, 
+        reqCount: 50, 
         desc: "バトル勝利時、減少したHPの10%を回復する",
         type: "battle_win_heal" , slot: "手"
     },
@@ -775,7 +846,7 @@ const giftDatabase = [
         id: "gift_slow", 
         name: "泥濘の足跡", 
         reqCreature: "エゾジカ", 
-        reqCount: 70, 
+        reqCount: 50, 
         desc: "敵の初期速度を5%低下させる",
         type: "enemy_slow", slot: "足"
     },
@@ -783,7 +854,7 @@ const giftDatabase = [
         id: "gift_shifter", 
         name: "夢の滑空", 
         reqCreature: "モモンガ", 
-        reqCount: 70, 
+        reqCount: 50, 
         desc: "深度変動時、1%の確率でDream Shifterを獲得",
         type: "shifter_chance", slot: "頭"
     },
@@ -1036,6 +1107,7 @@ function checkCycleReset() {
         restoreHackingBuff(); 
         calculateStats(); 
         reapplyWindowTimers();
+        renderAchievementsUI();
         addLog("【SYSTEM】サイクルが更新されました。すべてのデータが初期化されました。", "system");
         checkHackingEvent();
         updateProgressBar();
@@ -1769,8 +1841,11 @@ function endBattleLose() {
     
     enemyLevel = Math.max(1, Math.floor(enemyLevel / 2) + 1); localStorage.setItem("squirrel_enemy_level", enemyLevel);
     addLog(`SYSTEM CRASH: 戦闘敗北。全パッチと未精算ログをロスト... (次周 Enemy Lv.${enemyLevel}に低下)`, "chaos");
-    dreamCounter = 0; activePatches = []; calculateStats();
-    playerStats.hp = playerStats.maxHp; updateStatsUI([]); updateVisualState();
+    dreamCounter = 0; activePatches = []; 
+    playerStats.hp = playerStats.maxHp; 
+    calculateStats();
+    
+    updateVisualState();
     discardAllDreamWindows(); isBattling = false; isPaused = false; playFinishSound();
     processHackingQueue();
 }
@@ -2207,6 +2282,11 @@ function unlockById(id) { const ach = achievementList.find(a=>a.id===id); if(ach
 function unlockAchievement(ach) {
     unlockedAchievements.add(ach.id); addLog(`実績解除: [${ach.title}]`, "system");
     const t = document.getElementById("toast"); t.textContent = `Unlocked: ${ach.title}`; t.style.display = "block"; setTimeout(()=>t.style.display="none", 3000);
+    renderAchievementsUI();
+    if (unlockedAchievements.size >= achievementList.length) {
+        addLog("【SYSTEM】全ての観測データが揃いました。システムを最終フェーズへ移行します...", "chaos");
+        setTimeout(showClearScreen, 3000);
+    }
 }
 
 let audioCtx = null;
@@ -2246,21 +2326,30 @@ const achievementList = [
     { id: "duck_imprint", title: "親の顔より見た他人", desc: "アヒルに正しい親を認識させる", icon: "🦆", condition: () => false }
 ];
 
-// 図鑑UI
-const modal = document.getElementById("zukan-modal");
-const listEl = document.getElementById("achievement-list");
-document.getElementById("btn-zukan").onclick = () => {
-    initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-    listEl.innerHTML = "";
-    achievementList.forEach(ach => {
-        const u = unlockedAchievements.has(ach.id);
-        const d = document.createElement("div"); d.className = `achievement-item ${u?'unlocked':''}`;
-        d.innerHTML = `<div class="ach-icon">${u?ach.icon:"?"}</div><div class="ach-info"><h3>${u?ach.title:"?????"}</h3><p>${u?ach.desc:"Locked"}</p></div>`;
-        listEl.appendChild(d);
+// ================================================================
+// 新・アチーブメントUI (常時表示)
+// ================================================================
+function renderAchievementsUI() {
+    const leftContainer = document.getElementById("achievements-left");
+    const rightContainer = document.getElementById("achievements-right");
+    if (!leftContainer || !rightContainer) return;
+    
+    leftContainer.innerHTML = "";
+    rightContainer.innerHTML = "";
+    
+    achievementList.forEach((ach, index) => {
+        const isUnlocked = unlockedAchievements.has(ach.id);
+        const div = document.createElement("div");
+        div.className = `ach-icon-slot ${isUnlocked ? 'unlocked' : ''}`;
+        div.textContent = isUnlocked ? ach.icon : "🔒";
+        div.title = isUnlocked ? `【${ach.title}】\n${ach.desc}` : `【未観測】\n${ach.desc}`;
+        if (index < 5) {
+            leftContainer.appendChild(div);
+        } else {
+            rightContainer.appendChild(div);
+        }
     });
-    modal.style.display = "flex";
-};
-document.getElementById("zukan-close").onclick = () => modal.style.display = "none";
+}
 
 // ================================================================
 // ギフト装備UI
@@ -2332,8 +2421,8 @@ document.getElementById("btn-shop").onclick = () => {
 document.getElementById("shop-close").onclick = () => shopModal.style.display = "none";
 
 function buyUpgrade(type, cost, amount) {
-    if (type === 'spd' && isImmortalBuilder) {
-        alert("豊かな工務店の改修中は、速度を強化できません！");
+    if ((type === 'spd' || type === 'hp') && isImmortalBuilder) {
+        alert("豊かな工務店の改修中は、体力と速度を強化できません！");
         return;
     }
     
@@ -2393,6 +2482,7 @@ addLog("システム起動...");
 initAudio();
 calculateStats(); 
 updateProgressBar();
+renderAchievementsUI();
 
 // ★ 追加: チュートリアル表示の判定
 if (!localStorage.getItem("squirrel_tutorial_seen")) {
@@ -2465,6 +2555,26 @@ function updateJammerUI() {
     if (el) {
         el.textContent = "x" + inventory.jammer;
     }
+}
+
+function showClearScreen() {
+
+    isPaused = true;
+    clearInterval(mainLoopTimer);
+    discardAllDreamWindows();
+
+    const clearModal = document.getElementById("clear-modal");
+    const clearMsg = document.getElementById("clear-message");
+
+    clearModal.style.display = "flex";
+
+    setTimeout(() => {
+        clearModal.style.opacity = "1";
+    }, 100);
+
+    setTimeout(() => {
+        clearMsg.style.opacity = "1";
+    }, 4000);
 }
 </script>
 </body>
