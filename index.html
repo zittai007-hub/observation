@@ -1566,32 +1566,24 @@ function resolveBuilder(isAccept) {
 }
 
 function resolveTimbre() {
-    // リロード逃げ防止フラグを消去
     localStorage.removeItem("squirrel_pending_event"); 
-
-    // ▼修正: 仮置きIDから、実際の出現率アップギフト3種のIDに変更！
     const hiddenSet = ["gift_landani_up", "gift_insect_up", "gift_plant_up"];
     
-    // プレイヤーが持っている対象ギフトのIDを抽出
     const ownedHidden = hiddenSet.filter(id => unlockedGifts.includes(id));
     
     if (ownedHidden.length < 3) {
-        // まだ持っていない対象ギフトのリストを作成
         const missingGifts = hiddenSet.filter(id => !unlockedGifts.includes(id));
         
-        // その中からランダムに1つ選んで付与
         const newGiftId = missingGifts[Math.floor(Math.random() * missingGifts.length)];
         const giftData = giftDatabase.find(g => g.id === newGiftId);
         
         unlockedGifts.push(newGiftId);
         localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
-        
-        // UI（図鑑・ギフト画面など）に即座に反映
+    
         if (typeof renderGiftUI === "function") renderGiftUI();
         
         addLog(`【EVENT】音色が共鳴し、未知のギフト『${giftData.name}』を呼び寄せた！`, "#e91e63");
     } else {
-        // 3つ全て揃っている場合のボーナス（例として3000LOG獲得）
         currentLogs += 3000;
         localStorage.setItem("squirrel_current_logs", currentLogs);
         document.getElementById("hud-total-logs").textContent = currentLogs;
@@ -2041,7 +2033,7 @@ function updateCounter() {
     }
 
     if (dreamCounter < 0 && delta !== 0 && !isBattling && !isPaused) {
-        if (Math.random() < 0.05) { triggerRandomEvent(); return; }
+        if (Math.random() < 0.08) { triggerRandomEvent(); return; }
     }
 
     let isCrashed = false; 
