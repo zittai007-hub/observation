@@ -368,14 +368,14 @@ body::after {
 
 <div id="outer-layers-container"></div>
 
-<div id="tutorial-modal" class="overlay-modal" style="z-index: 9500; background: rgba(0, 5, 15, 0.95); color: #fff;">
-    <div style="width: 80%; max-width: 500px; border: 3px solid #fff; padding: 30px; background: #111; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px; box-shadow: 0 0 30px rgba(0,0,0,0.8);">
-        <h1 style="margin: 0; font-family: 'Orbitron'; color: #0ff; font-size: 24px;">SYSTEM INITIALIZED</h1>
+<div id="tutorial-modal" class="overlay-modal" style="z-index: 9500; background: rgba(32, 32, 32, 0.95); color: #fff;">
+    <div style="width: 80%; max-width: 500px; border: 3px solid #fff; padding: 30px; background: #ffffff; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px; box-shadow: 0 0 30px rgba(0,0,0,0.8);">
+        <h1 style="margin: 0; font-family: 'Orbitron'; color: rgb(87, 114, 114); font-size: 24px;">SYSTEM INITIALIZED</h1>
         <div style="display: flex; align-items: center; justify-content: center; gap: 20px; text-align: left; width: 100%;">
-            <p style="font-size: 16px; line-height: 1.6; margin: 0; font-weight: bold;">とにかくログを集めて<br>アチーブメントを達成しよう！</p>
+            <p style="font-size: 16px; line-height: 1.6; margin: 0; font-weight: bold; color: rgb(0, 0, 0);">とにかくログを集めて<br>アチーブメントを解放しよう！</p>
             <img src="iruka_sisaku.png" alt="Tutorial Image" style="width: 120px; height: auto; border: none; background: #fff;">
         </div>
-        <button class="battle-btn" style="margin-top: 20px;" onclick="closeTutorial()">システムを起動する</button>
+        <button class="battle-btn" style="margin-top: 20px; color: rgb(11, 11, 11);" onclick="closeTutorial()">システムを起動する</button>
     </div>
 </div>
 
@@ -2516,9 +2516,7 @@ function updateJammerUI() {
         el.textContent = "x" + inventory.jammer;
     }
 }
-// ================================================================
-// 全クリア演出 (絶対にズレない！AA完全連動マーカー方式)
-// ================================================================
+
 function showClearScreen() {
     isPaused = true;
     clearInterval(mainLoopTimer);
@@ -2528,10 +2526,7 @@ function showClearScreen() {
     const clearMsg = document.getElementById("clear-message");
     const asciiElement = document.getElementById("clear-ascii");
 
-    // AAのテキストをごっそり取得
     let aaHtml = asciiElement.innerHTML;
-
-    // AAの中に仕込んだマーカーのリスト
     const markers = ["０", "１", "２", "３", "４", "５", "６", "７", "８", "９"];
 
     achievementList.forEach((ach, index) => {
