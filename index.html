@@ -2371,9 +2371,6 @@ function closeTutorial() {
     tutorialModal.style.display = "none";
     isPaused = false;
     checkHackingEvent();
-    if (!isPaused && !isBattling && !isSettling) {
-        mainLoopTimer = setInterval(updateCounter, 2500);
-    }
 }
 
 const shopModal = document.getElementById("shop-modal");
@@ -2454,7 +2451,6 @@ if (!localStorage.getItem("squirrel_tutorial_seen")) {
     tutorialModal.style.display = "flex";
 } else {
     checkHackingEvent(); 
-    if (!isPaused) mainLoopTimer = setInterval(updateCounter, 2500);
 }
 
 function spawnPopup(text, color, targetElementId) {
