@@ -93,35 +93,32 @@ body {
     box-shadow: 0 -3px 10px rgba(0,0,0,0.2); display: flex; gap: 10px; align-items: center;
 }
 
-/* ▼ 新規追加: 全体を横に並べるための大枠のCSS */
 #app-wrapper {
     display: flex;
-    flex-direction: row; /* 強制的に横並びに指定！ */
+    flex-direction: row; 
     justify-content: center;
     align-items: center;
     width: 98%;
     max-width: 1400px;
     height: calc(100vh - 140px);
     margin-top: 20px;
-    gap: 15px; /* アチーブメントと画面の隙間 */
+    gap: 15px; 
     z-index: 100;
 }
 
-/* ▼ 新規追加: 左右のアイコンを縦に並べる枠 */
 #achievements-left, #achievements-right {
     display: flex;
     flex-direction: column;
-    justify-content: center; /* アイコンを上下中央に寄せる */
+    justify-content: center; 
     gap: 15px;
-    flex-shrink: 0; /* 画面が狭くなってもアイコンが潰れないようにする */
+    flex-shrink: 0; 
 }
 
-/* ▼ 修正: 元の #container のCSSをこれでまるごと上書き */
 #container {
-    flex: 1; /* 余った横幅をメイン画面がすべて埋める */
+    flex: 1; 
     max-width: 1200px;
-    height: 100%; /* 親(app-wrapper)の高さに合わせる */
-    margin-top: 0; /* ★重要: 余計なズレを防ぐために 0 にする */
+    height: 100%; 
+    margin-top: 0; 
     position: relative; 
     background: #fff; 
     border: 3px solid #000; 
@@ -283,10 +280,9 @@ body::after {
     background: linear-gradient(rgba(233, 226, 226, 0) 50%, rgba(211, 211, 211, 0.25) 50%), 
                 linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
     background-size: 100% 3px, 3px 100%;
-    z-index: 9999; pointer-events: none; /* クリックを阻害しない */
+    z-index: 9999; pointer-events: none; 
 }
 
-/* ---- アニメーション (ポップアップ & 画面揺れ) ---- */
 .damage-popup {
     position: fixed; font-family: 'Orbitron'; font-size: 26px; font-weight: 900;
     text-shadow: 0px 0px 5px #000, 2px 2px 0px #000; z-index: 10000; pointer-events: none;
@@ -442,7 +438,7 @@ body::after {
     </div>
 </div>
 <div id="clear-modal" class="overlay-modal" style="background: #ffffff; z-index: 9999; flex-direction: column; justify-content: center; align-items: center; display: none; transition: opacity 2.5s ease-in; opacity: 0;">
-    <pre id="clear-ascii" style="font-family: 'MS P Gothic', 'ＭＳ P ゴシック', monospace; font-size: 14px; color: #111; line-height: 1.1; text-align: center; margin-bottom: 30px;">
+    <pre id="clear-ascii" style="font-family: 'MS P Gothic', 'ＭＳ P ゴシック', monospace; font-size: 10px; color: #111; line-height: 1.1; text-align: center; margin-bottom: 30px;">
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────|
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 　┃　　　　　　　　　　　　　　　　　 ┃　　　　　　　　　　　　　　　　　　　　 ＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 ┃　　　　　　　　　　　　　　　　　 ┃　　　　　　　　　　　　　　　　　　　　 |  ＿＿_　　　　　  　 ＿＿00　　　 ＿,　 __　  ___　 　|　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
@@ -568,9 +564,6 @@ body::after {
     </div>
 </div>
 <script>
-// ================================================================
-// 1. DOM要素取得 (エラー回避のため最上部に配置)
-// ================================================================
 const container = document.getElementById("container");
 const outerLayers = document.getElementById("outer-layers-container");
 const mainLogWin = document.getElementById("main-log-window");
@@ -580,9 +573,6 @@ const passiveChoices = document.getElementById("passive-choices");
 const replaceModal = document.getElementById("replace-modal");
 const replaceChoices = document.getElementById("replace-choices");
 
-// ================================================================
-// 2. データ定義関連
-// ================================================================
 const logsNeutral = ["待機中...", "システム安定", "環境ノイズを受信", "微弱なシグナルを検知"]; 
 const logsAwaken = ["メモリ最適化", "ガベージコレクション", "デフラグメンテーション", "論理チェック", "キャッシュクリア", "スタックトレース", "例外処理", "プロセス強制終了"]; 
 const logsCreature = ["オオカミ", "カワウソ", "ゾウガメ", "ゾウ", "カバ", "トラ", "ライオン", "カイウサギ", "アカカンガルー", "キリン", "マレーグマ", "ホシガメ", "アヒル", "キツネ", "ヤマネコ", "イノシシ", "エゾジカ", "リス", "ネズミ", "アザラシ", "ジュゴン", "スナメリ", "タヌキ", "テン", "ヤギ", "ノマウマ", "モモンガ", "ハクビシン", "ムササビ", "ウシ", "ブタ", "ニワトリ", "ラッコ", "カピバラ", "パンダ", "サイ", "アリクイ", "カカポ", "コウモリ", "キツツキ", "キジバト", "アマガエル", "アジ", "アンコウ", "オジサン", "サケ", "コイ", "エイ", "イルカ", "クジラ", "サメ", "トビウオ", "マンボウ", "サバ", "ハマグリ", "シジミ", "ナマコ", "ウニ", "アゲハチョウ", "トンボ", "イナゴ", "バッタ", "テントウムシ", "ミツバチ", "クマゼミ", "ツクツクボウシ", "キリギリス", "カブトムシ", "ゲンジボタル", "コオロギ", "カゲロウ", "カ", "ナナフシ", "カマキリ", "ダンゴムシ", "クモ", "サソリ", "ハエ", "オリーブ", "ツバキ", "サルスベリ", "バオバブ", "カエデ", "ススキ", "アサガオ", "キキョウ", "ハルジオン", "ウメ", "ブルーベリー", "ザクロ", "レンコン", "豆苗", "オジギソウ", "ドクダミ", "ハエトリグサ", "サルビア", "リュウゼツラン", "ドングリ", "チューリップ", "クローバー"];
@@ -671,9 +661,6 @@ function getObserverLogText() {
     return "？？の行動を見通せなかった。。。"
 }
 
-// ================================================================
-// 3. グローバル変数群
-// ================================================================
 let activePatches = []; 
 let pendingPatch = null; 
 let playerStats = { maxHp: 100, hp: 100, atk: 10, spd: 10, critRate: 5, critDmg: 1.5 };
@@ -705,12 +692,9 @@ let isFirstLoad = true;
 let remainingPlayerActions = 0;
 let runAwakenCount = 0;
 
-// ================================================================
-// 4. ハッキングカード システム
-// ================================================================
 let hackBuffs = { logSpeedMod: 1.0, enemyHpMod: 1.0, enemyAtkMod: 1.0, achieveMod: 1.0, windowAdd: 0, windowMult: 1.0, patchBoost: 1.0, critAdd: 0,
-    bonusLogOnSettle: 0,  // 精算時ボーナス
-    healOnWin: 0,         // 戦闘勝利時回復
+    bonusLogOnSettle: 0,  
+    healOnWin: 0,        
     armorOnLowDamage: 0,
     awakenBonusLog: 0, betterPatchGacha: false, giftReqMod: 1.0, sleepOnly: false, crashLimit: 15
 };
@@ -755,13 +739,13 @@ const hackingCards = {
 
 const giftDatabase = [
     { 
-        id: "gift_damage_loss",       // 【必須】ギフトのID（他と絶対に被らない英語を入れる）
-        name: "海洋の安寧",         // 【必須】画面に表示される名前
-        reqCreature: "クジラ",   // 【必須】解放条件となる動物の名前（正確に）
-        reqCount: 50,              // 【必須】解放に必要な観測回数
-        desc: "受けるダメージの軽減",         // 【必須】画面に表示される説明
-        type: "memo_type01",          // （メモ用。プログラム上は使わないので自由でOK）
-        slot: "頭"                  // 【必須】装備できる部位（"頭", "手", "足" のいずれか）
+        id: "gift_damage_loss",   
+        name: "海洋の安寧",      
+        reqCreature: "クジラ",  
+        reqCount: 50,         
+        desc: "受けるダメージの軽減",      
+        type: "memo_type01",       
+        slot: "頭"               
     },
     { 
         id: "gift_superlucky",     
@@ -1568,35 +1552,31 @@ function resolveBuilder(isAccept) {
 
 function resolveTimbre() {
     localStorage.removeItem("squirrel_pending_event"); 
+
     const hiddenSet = ["gift_landani_up", "gift_insect_up", "gift_plant_up"];
-    
     const ownedHidden = hiddenSet.filter(id => unlockedGifts.includes(id));
     
     if (ownedHidden.length < 3) {
         const missingGifts = hiddenSet.filter(id => !unlockedGifts.includes(id));
-        
         const newGiftId = missingGifts[Math.floor(Math.random() * missingGifts.length)];
         const giftData = giftDatabase.find(g => g.id === newGiftId);
         
         unlockedGifts.push(newGiftId);
         localStorage.setItem("squirrel_unlocked_gifts", JSON.stringify(unlockedGifts));
-    
         if (typeof renderGiftUI === "function") renderGiftUI();
         
         addLog(`【EVENT】音色が共鳴し、未知のギフト『${giftData.name}』を呼び寄せた！`, "#e91e63");
     } else {
         currentLogs += 3000;
-        localStorage.setItem("squirrel_current_logs", currentLogs);
-        document.getElementById("hud-total-logs").textContent = currentLogs;
+        totalLogsAllTime += 3000; 
+        
         addLog("【EVENT】3つの冠（ギフト）が完全に調和し、膨大なデータ(3000 LOG)へと変換された！", "#0f0");
+        updateLogCountUI();
     }
     
     closeEventModal();
 }
 
-// ================================================================
-// オートバトルシステム
-// ================================================================
 function startBattle() {
     isBattling = true; isPaused = true; clearInterval(mainLoopTimer); 
     
@@ -1662,7 +1642,7 @@ function addBattleLog(text, color="#fff") {
 
 function battleAction(type) {
     document.getElementById("battle-commands").style.display = "none"; 
-    remainingPlayerActions = 0; // ▼ 追加: 前の戦闘の行動回数が残らないようリセット
+    remainingPlayerActions = 0; 
     
     if (type === 'attack') { addBattleLog("戦闘開始！オートで進行します...", "#0ff"); isPlayerTurn = playerStats.spd >= enemyStats.spd; setTimeout(processTurn, 800); } 
     else if (type === 'flee') {
@@ -1698,9 +1678,8 @@ function processTurn() {
         remainingPlayerActions--;
         if (remainingPlayerActions > 0 && enemyStats.hp > 0) {
             setTimeout(processTurn, 800);
-            return; // ここで処理を止めてループさせる
+            return; 
         } else {
-            // 行動終了、敵のターンへ
             remainingPlayerActions = 0;
             isPlayerTurn = false;
         }
@@ -1715,8 +1694,6 @@ function processTurn() {
 function playerAttack() {
     let dmg = playerStats.atk; 
     let isCrit = Math.random() < (playerStats.critRate / 100); 
-    
-    // ▼ 修正: スーパークリティカルの発生率を計算（ギフトの5% ＋ 100%超過分のCRT率）
     let baseSuperCritChance = Object.values(equippedGifts).includes("gift_superlucky") ? 0.05 : 0;
     let excessCritChance = Math.max(0, playerStats.critRate - 100) / 100;
     let superCritChance = baseSuperCritChance + excessCritChance;
@@ -1873,9 +1850,6 @@ function discardAllDreamWindows() {
     log_corrector = []; 
 }
 
-// ================================================================
-// パッチ獲得・入れ替えモーダル
-// ================================================================
 function showPassiveSelection() {
     isPaused = true; passiveChoices.innerHTML = "";
     const normalPatches = patchDatabase.filter(p => !p.exclusive);
@@ -1991,20 +1965,19 @@ function updateCounter() {
 
     checkCycleReset();
     const oldCounter = dreamCounter; let delta = Math.floor(Math.random() * 3) - 1; 
-    
-    // 軛の鋲（ギフト）の効果
+
     if (Object.values(equippedGifts).includes("gift_stabilizer")) {
         if (dreamCounter >= 12) {
             let r = Math.random();
-            if (r < 0.4) delta = -1;       // 60%の確率で安全な方向(-1)へ戻る
-            else if (r < 0.8) delta = 0;   // 30%の確率で踏みとどまる(0)
-            else delta = 1;                // 10%の確率でさらに危険な方向(1)へ
+            if (r < 0.4) delta = -1;     
+            else if (r < 0.8) delta = 0;  
+            else delta = 1;           
         } 
         else if (dreamCounter <= -12) {
             let r = Math.random();
-            if (r < 0.4) delta = 1;        // 60%の確率で安全な方向(1)へ戻る
-            else if (r < 0.8) delta = 0;   // 30%の確率で踏みとどまる(0)
-            else delta = -1;               // 10%の確率でさらに危険な方向(-1)へ
+            if (r < 0.4) delta = 1;    
+            else if (r < 0.8) delta = 0;  
+            else delta = -1;    
         }
     }
     
@@ -2093,26 +2066,20 @@ function openDreamWindow(depth) {
     if (isEquippedSet) specialChance += 0.25;
     if (isUnlockedSet) specialChance += 0.25;
 
-    // ▼ 抽選処理
     if (specialChance > 0 && Math.random() < specialChance) {
-        // 隠しセット効果発動！アチーブメント対象生物から選出
         const targetName = achCreatures[Math.floor(Math.random() * achCreatures.length)];
         idx = logsCreature.indexOf(targetName);
     } 
     else if (equipped.includes("gift_landani_up") && Math.random() < 0.3) {
-        // 既存処理: 陸上生物アップ
         idx = Math.floor(Math.random() * 42);
     } 
     else if (equipped.includes("gift_insect_up") && Math.random() < 0.3) {
-        // 既存処理: 昆虫アップ
         idx = 58 + Math.floor(Math.random() * 20);
     } 
     else if (equipped.includes("gift_plant_up") && Math.random() < 0.3) {
-        // 既存処理: 植物アップ
         idx = 78 + Math.floor(Math.random() * (logsCreature.length - 78));
     } 
     else {
-        // 通常の完全ランダム
         idx = Math.floor(Math.random() * logsCreature.length);
     }
 
@@ -2179,7 +2146,6 @@ function generateSubLog(depth) {
     w.count++; document.getElementById(`cnt-${depth}`).textContent = w.count;
 }
 
-// 実績精算
 function checkAchievements() {
     if (log_corrector.length === 0) return;
     checkCycleReset(); 
@@ -2188,7 +2154,6 @@ function checkAchievements() {
     const box = document.getElementById("settlement-box"); const countEl = document.getElementById("settlement-count");
     let total = log_corrector.reduce((a,b)=>a+b.count,0);
     if (hackBuffs.bonusLogOnSettle > 0) {
-        // Normalの50ボーナスなら閾値50、Goldの300ボーナスなら閾値200とするための簡易判定
         let required = hackBuffs.bonusLogOnSettle === 50 ? 50 : 500;
         if (total >= required) {
             total += hackBuffs.bonusLogOnSettle;
@@ -2324,9 +2289,6 @@ const achievementList = [
     { id: "duck_imprint", title: "親の顔より見た他人", desc: "アヒルに正しい親を認識させる", icon: "achi10.jpg", condition: () => false }
 ];
 
-// ================================================================
-// 新・アチーブメントUI (常時表示) - 全画像対応版
-// ================================================================
 function renderAchievementsUI() {
     const leftContainer = document.getElementById("achievements-left");
     const rightContainer = document.getElementById("achievements-right");
@@ -2335,8 +2297,7 @@ function renderAchievementsUI() {
     leftContainer.innerHTML = "";
     rightContainer.innerHTML = "";
     
-    // ▼ 未解放（ロック状態）の時に表示する画像のファイル名を指定します
-    const lockedIconPath = "lock.jpg"; // ← ★用意した鍵画像のファイル名に変更してください
+    const lockedIconPath = "lock.jpg"; 
     
     achievementList.forEach((ach, index) => {
         const isUnlocked = unlockedAchievements.has(ach.id);
@@ -2344,7 +2305,6 @@ function renderAchievementsUI() {
         div.className = `ach-icon-slot ${isUnlocked ? 'unlocked' : ''}`;
         
         if (isUnlocked) {
-            // 解除済みの画像
             div.innerHTML = `<img src="${ach.icon}" alt="unlocked" style="width: 90%; height: 90%; object-fit: contain; pointer-events: none;">`;
         } else {
             div.innerHTML = `<img src="${lockedIconPath}" alt="locked" style="width: 90%; height: 90%; object-fit: contain; pointer-events: none; opacity: 0.8;">`;
@@ -2360,9 +2320,7 @@ function renderAchievementsUI() {
     });
 }
 
-// ================================================================
-// ギフト装備UI
-// ================================================================
+
 const giftModal = document.getElementById("gift-modal");
 
 document.getElementById("btn-gift").onclick = () => {
@@ -2408,7 +2366,6 @@ function renderGiftUI() {
     });
 }
 
-// ★ 追加: チュートリアルモーダル
 const tutorialModal = document.getElementById("tutorial-modal");
 function closeTutorial() {
     localStorage.setItem("squirrel_tutorial_seen", "true");
@@ -2486,14 +2443,14 @@ function saveShopData() {
     document.getElementById("shop-current-logs").textContent = currentLogs;
     calculateStats();
 }
-// 開始
+
 addLog("システム起動...");
 initAudio();
 calculateStats(); 
 updateProgressBar();
 renderAchievementsUI();
+showClearScreen();
 
-// ★ 追加: チュートリアル表示の判定
 if (!localStorage.getItem("squirrel_tutorial_seen")) {
     isPaused = true;
     tutorialModal.style.display = "flex";
@@ -2502,9 +2459,6 @@ if (!localStorage.getItem("squirrel_tutorial_seen")) {
     if (!isPaused) mainLoopTimer = setInterval(updateCounter, 2500);
 }
 
-// ================================================================
-// エフェクト & UIアニメーション制御
-// ================================================================
 function spawnPopup(text, color, targetElementId) {
     const target = document.getElementById(targetElementId);
     if (!target) return;
@@ -2514,8 +2468,7 @@ function spawnPopup(text, color, targetElementId) {
     popup.className = "damage-popup";
     popup.style.color = color;
     popup.textContent = text;
-    
-    // ターゲットの少し上・少しランダムな横位置に出現
+
     const offsetX = (Math.random() - 0.5) * 40;
     popup.style.left = `${rect.left + rect.width / 2 + offsetX}px`;
     popup.style.top = `${rect.top}px`;
@@ -2527,7 +2480,7 @@ function spawnPopup(text, color, targetElementId) {
 function triggerShake() {
     const container = document.getElementById("container");
     container.classList.remove("shake-hard");
-    void container.offsetWidth; // アニメーションをリセット
+    void container.offsetWidth; 
     container.classList.add("shake-hard");
     setTimeout(() => container.classList.remove("shake-hard"), 300);
 }
@@ -2576,16 +2529,16 @@ function showClearScreen() {
 
     achDisplay.innerHTML = "";
     const positions = [
-        { left:  862, top:  387 }, 
-        { left: 100, top:  387 }, 
-        { left: 365, top:  387 }, 
-        { left: 615, top: 387 },
-        { left: 1115, top:  387 }, 
-        { left: 1370, top:  387 }, 
-        { left: 1600, top:  387 }, 
-        { left: 1650, top: 387 },
-        { left: 1850, top: 387 }, 
-        { left: 1900, top: 387 } 
+        { left:  650, top: 235 }, 
+        { left: 110, top: 235 }, 
+        { left: 290, top: 235 }, 
+        { left: 470, top: 235 },
+        { left: 825, top: 235 }, 
+        { left: 1010, top: 235 }, 
+        { left: 1165, top: 235 }, 
+        { left: 1215, top: 235 },
+        { left: 1340, top: 235 }, 
+        { left: 1390, top: 235 } 
     ];
 
     achievementList.forEach((ach, index) => {
@@ -2604,8 +2557,8 @@ function showClearScreen() {
     const extraImg = document.createElement("img");
     extraImg.src = "hanamaru.png"; 
     extraImg.style.position = "absolute";
-    extraImg.style.left = "270px"; 
-    extraImg.style.top = "290px";  
+    extraImg.style.left = "240px"; 
+    extraImg.style.top = "165px";  
     extraImg.style.width = "40px"; 
     extraImg.style.height = "40px"; 
     extraImg.style.objectFit = "contain";
@@ -2631,6 +2584,68 @@ function closeClearScreen() {
     }
     addLog("【SYSTEM】全観測完了。引き続きシステムの稼働を継続します。", "system");
 }
+
+function getSecondsUntilNextReset() {
+    const now = new Date(new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }));
+    const nextReset = new Date(now);
+    
+    let h = now.getHours();
+    let m = now.getMinutes();
+    let resetHour = Math.floor(h / 4) * 4;
+    if (h % 4 === 0 && m < 35) {
+    } else {
+        resetHour += 4;
+    }
+    nextReset.setHours(resetHour, 35, 0, 0);
+    return Math.floor((nextReset - now) / 1000);
+}
+
+function createWarningBanner() {
+    const style = document.createElement("style");
+    style.textContent = `
+        @keyframes pulseAlert {
+            0% { background-color: #e91e63; }
+            50% { background-color: #b3003b; }
+            100% { background-color: #e91e63; }
+        }
+    `;
+    document.head.appendChild(style);
+    const div = document.createElement("div");
+    div.id = "reset-warning-banner";
+    div.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; background: #e91e63; color: #fff; text-align: center; padding: 12px; font-size: 16px; font-weight: bold; z-index: 10000; box-shadow: 0 4px 15px rgba(233,30,99,0.5); font-family: 'Orbitron', 'MS Gothic', monospace; letter-spacing: 1px; animation: pulseAlert 2s infinite; display: none;";
+    div.innerHTML = `<span id="reset-warning-text"></span>`;
+    document.body.appendChild(div);
+}
+
+let wasCountingDown = false;
+
+function updateCountdownUI() {
+    if (isPaused && document.getElementById("clear-modal") && document.getElementById("clear-modal").style.display === "flex") {
+    }
+
+    const secLeft = getSecondsUntilNextReset();
+    const banner = document.getElementById("reset-warning-banner");
+    if (secLeft <= 300) {
+        if (!banner) createWarningBanner();
+        
+        const m = Math.floor(secLeft / 60).toString().padStart(2, '0');
+        const s = (secLeft % 60).toString().padStart(2, '0');
+        const entity = (unlockedAchievements.size >= achievementList.length) ? "GM" : "？？";
+        
+        document.getElementById("reset-warning-text").textContent = 
+            `【SYSTEM WARNING】${entity}が終点へと辿り着きました。再起動を行ないます。 [ -${m}:${s} ]`;
+        
+        document.getElementById("reset-warning-banner").style.display = "block";
+        wasCountingDown = true;
+    } else {
+        if (banner) banner.style.display = "none";
+        if (wasCountingDown) {
+            wasCountingDown = false;
+            checkCycleReset(); 
+        }
+    }
+}
+setInterval(updateCountdownUI, 1000);
 </script>
 </body>
 </html>
